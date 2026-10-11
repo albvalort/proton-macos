@@ -72,6 +72,7 @@ wine() {
     cd "$OBJ"
     PKG_CONFIG=/opt/homebrew/bin/pkg-config \
     PKG_CONFIG_PATH="$DEPS/lib/pkgconfig" PKG_CONFIG_LIBDIR="$DEPS/lib/pkgconfig" \
+    LDFLAGS="-L$DEPS/lib" \
     CC="/usr/bin/clang -arch x86_64" CXX="/usr/bin/clang++ -arch x86_64" OBJC="/usr/bin/clang -arch x86_64" \
     "$SRC/configure" \
       --build=aarch64-apple-darwin --host=x86_64-apple-darwin \
@@ -80,8 +81,8 @@ wine() {
       --disable-loader64 \
       --prefix="$DIST_DIR" \
       --disable-tests --without-x --without-wayland \
-      --with-freetype \
-      --without-gstreamer --without-vulkan --without-opencl --without-sdl --without-gnutls
+      --with-freetype --with-vulkan \
+      --without-gstreamer --without-opencl --without-sdl --without-gnutls
     make -j"$JOBS"
     make install
   )
@@ -95,6 +96,12 @@ wine() {
 link_loader() {
   ln -sf ../lib/wine/x86_64-unix/wine "$DIST_DIR/bin/wine"
   cp -a "$DEPS"/lib/*.dylib "$DIST_DIR/lib/"
+  # DXVK (macOS fork) in Proton's layout: lib/wine/dxvk/<arch>-windows
+  if [[ -d "$DEPS/dxvk" ]]; then
+    mkdir -p "$DIST_DIR/lib/wine/dxvk/x86_64-windows" "$DIST_DIR/lib/wine/dxvk/i386-windows"
+    cp -a "$DEPS"/dxvk/x64/*.dll "$DIST_DIR/lib/wine/dxvk/x86_64-windows/"
+    cp -a "$DEPS"/dxvk/x32/*.dll "$DIST_DIR/lib/wine/dxvk/i386-windows/"
+  fi
 }
 
 rebuild() {

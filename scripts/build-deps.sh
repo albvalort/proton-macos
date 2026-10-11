@@ -27,6 +27,15 @@ export CFLAGS="-O2"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
+# Prebuilt, redistributable binaries:
+#   name | version | url | sha256 | path inside the archive | destination under $PREFIX
+PREBUILT=(
+  # Vulkan on Metal (universal dylib, Apache-2.0); Wine loads it as its Vulkan library.
+  "moltenvk|1.4.2|https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-macos.tar|f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e|MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib|lib"
+  # D3D10/11 on Vulkan, macOS/MoltenVK fork (PE DLLs, zlib) — see docs/adr/0004-graphics-backends.md
+  "dxvk-macos|1.10.3-20230507|https://github.com/Gcenx/DXVK-macOS/releases/download/v1.10.3-20230507-repack/dxvk-macOS-async-v1.10.3-20230507-repack.tar.gz|acd1520ad105d8ef124a09c8e11a259a5dc8bdc565ad18e0e52693f9807b2477|dxvk-macOS-async-v1.10.3-20230507-repack|dxvk"
+)
+
 # name | version | url | sha256 | extra configure flags
 PACKAGES=(
   "freetype|2.14.3|https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz|36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f|--with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no --with-brotli=no"
@@ -73,7 +82,35 @@ build_autotools() {
   touch "$PREFIX/.built-$name-$version"
 }
 
+install_prebuilt() {
+  local name=$1 version=$2 url=$3 sha=$4 file=$5 dest=$6 tarball src
+  if [[ -f "$PREFIX/.built-$name-$version" ]]; then
+    log "$name $version already installed"
+    return
+  fi
+  tarball=$(fetch "$url" "$sha")
+  src="$BUILD/$name-$version"
+  rm -rf "$src" && mkdir -p "$src"
+  tar -xf "$tarball" -C "$src"
+  log "Installing prebuilt $name $version"
+  mkdir -p "$PREFIX/$dest" "$PREFIX/share/licenses/$name"
+  if [[ -d "$src/$file" ]]; then
+    rsync -a --delete "$src/$file/" "$PREFIX/$dest/"
+  else
+    install -m 755 "$src/$file" "$PREFIX/$dest/$(basename "$file")"
+  fi
+  find "$src" -maxdepth 2 -name 'LICENSE*' -exec cp {} "$PREFIX/share/licenses/$name/" \;
+  touch "$PREFIX/.built-$name-$version"
+}
+
 wanted=("$@")
+for entry in "${PREBUILT[@]}"; do
+  IFS='|' read -r name version url sha file dest <<<"$entry"
+  if [[ ${#wanted[@]} -gt 0 && ! " ${wanted[*]} " =~ \ $name\  ]]; then
+    continue
+  fi
+  install_prebuilt "$name" "$version" "$url" "$sha" "$file" "$dest"
+done
 for entry in "${PACKAGES[@]}"; do
   IFS='|' read -r name version url sha flags <<<"$entry"
   if [[ ${#wanted[@]} -gt 0 && ! " ${wanted[*]} " =~ \ $name\  ]]; then
