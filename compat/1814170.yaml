@@ -1,0 +1,6 @@
+name: Lingo
+status: untested
+notes: >-
+  Godot 3 (OpenGL). Used to hang at startup in GetLogicalDrives(): BOOLEAN syscall arguments
+  were misread on macOS x86_64 (fixed in wine 77017fd). Now creates its window; gameplay not
+  validated yet. Installed with `pmac install`, 2026-10-12.

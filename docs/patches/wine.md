@@ -43,6 +43,7 @@ Portado desde el código LGPL de **CrossOver 26.0** (Wine 11.0, © CodeWeavers),
 | `win32u`: `client_surface_attach()` (propio) | En CrossOver, `client_surface_create` registra la surface en la ventana; en upstream no. Sin esto, la vista Metal se quedaba con el tamaño inicial (imagen en la esquina sobre fondo azul). |
 | `wow64cpu`: transiciones 32↔64 con `lretq` bajo Rosetta 2 (CrossOver, CW HACK 20760), commit `8152fab` | Con el modelo de TEB de CrossOver, sin esto las excepciones de código de 32 bits se despachaban con la pila de 64 y los juegos WoW64 (Downwell, Minimalism) se cerraban ("Exception frame is not in stack limits"). |
 | `ntdll`: `WINEDLLPATH_PREPEND` (propio) | Wine busca primero en su propio directorio y después en `WINEDLLPATH`. Así los módulos de GPTK se usan desde un directorio de enlaces del prefijo, sin tocar la instalación. |
+| `ntdll`: truncar los argumentos `BOOLEAN` de las syscalls (`SYSCALL_BOOLEAN_ARG`, propio), commit `77017fd` | El ABI x64 de Windows no define los bits altos de los argumentos estrechos y el código PE pasa `BOOLEAN` con un `movb`; Apple clang da por hecho que vienen extendidos y comprueba el registro de 32 bits. La basura convertía `FALSE` en `TRUE`: `GetLogicalDrives()` se quedaba en bucle porque `NtQueryDirectoryObject` veía `restart=TRUE` siempre (Lingo, Godot 3). Se aplica a las 42 syscalls de `ntdll` con parámetros `BOOLEAN`. |
 
 ## Pendiente de revisar
 
