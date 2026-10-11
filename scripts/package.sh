@@ -30,9 +30,18 @@ rsync -a --delete "$WINE_DIST/" "$TOOL_DIR/files/"
 # Proton symlinks these into the prefix; our fonts come from Wine for now.
 mkdir -p "$TOOL_DIR/files/share/fonts"
 
-for f in proton filelock.py steampipe_fixups.py user_settings.sample.py; do
-  install -m "$([[ $f == proton ]] && echo 755 || echo 644)" "$PROTON_SRC/$f" "$TOOL_DIR/$f"
+for f in filelock.py steampipe_fixups.py user_settings.sample.py; do
+  install -m 644 "$PROTON_SRC/$f" "$TOOL_DIR/$f"
 done
+# Steam spawns compatibility tools as x86_64 (Rosetta) for Windows games, but on macOS 27 the
+# /usr/bin/python3 shim needs libxcrun, which is arm64-only. Proton's script becomes proton.py and
+# `proton` is a launcher that runs it as arm64; Wine itself is still started as x86_64.
+install -m 755 "$PROTON_SRC/proton" "$TOOL_DIR/proton.py"
+cat > "$TOOL_DIR/proton" <<'LAUNCHER'
+#!/bin/sh
+exec /usr/bin/arch -arm64 /usr/bin/python3 "$(dirname "$0")/proton.py" "$@"
+LAUNCHER
+chmod 755 "$TOOL_DIR/proton"
 install -m 644 "$PROTON_SRC/toolmanifest_macos.vdf" "$TOOL_DIR/toolmanifest.vdf"
 sed -e "s/##INTERNAL_TOOL_NAME##/$TOOL_NAME/" -e "s/##BUILD_NAME##/$DISPLAY_NAME/" \
     -e 's/"to_oslist"    "linux"/"to_oslist"    "macos"/' \

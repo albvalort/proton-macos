@@ -138,12 +138,36 @@ rama `__APPLE__` de `lsteamclient/unixlib.cpp` para cargar `steamclient.dylib`.
   fichero**: lanzando `steam_osx` con un shim `DYLD_INSERT_LIBRARIES`. **Sin probar**: el lanzamiento con
   inyección en el cliente gráfico no está autorizado en esta sesión y queda a decisión del usuario.
 
+### 2.4 De extremo a extremo con nuestro Proton (2026-10-11) ✅
+
+`scripts/steamcmd.sh` (HOME aislado) + shim + `CompatToolMapping/585690 → proton_macos`:
+`app_update 585690` descarga el depot de Windows y `app_run 585690` ejecuta
+`proton_macos/proton waitforexitandrun <...>/Minimalism.exe`. Minimalism (PE32, D3D9 → wined3d → OpenGL)
+arranca a pantalla completa.
+
+Hallazgos:
+
+- **Steam lanza la herramienta como proceso x86_64** (Rosetta) cuando el juego es x86. El shim
+  `/usr/bin/python3` de las CLT de macOS 27 necesita `libxcrun`, que es solo arm64, y falla. Por eso `package.sh`
+  instala el script de Proton como `proton.py` y `proton` es un lanzador
+  `arch -arm64 /usr/bin/python3 proton.py` (Wine sigue arrancando como x86_64).
+- **steamcmd no ofrece el servidor IPC para juegos** (`[S_API FAIL] ... ipcserver GetSteamPath failed`;
+  en Proton, `steamclient_init_registry: Failed to connect to Steam`). Los juegos lanzados por steamcmd
+  funcionan, pero sin Steam API (logros, overlay, etc.). La API sí funciona con el cliente gráfico abierto
+  (hito 5).
+- steamcmd y el cliente gráfico no pueden compartir directorio de datos: cada uno sobrescribe el token de
+  sesión del otro (`config.vdf` → `ConnectCache`). `scripts/steamcmd.sh` usa un HOME propio.
+- `installscript_posix.cpp: Standalone evaluator returned error code`: los installscripts (redistribuibles)
+  se ejecutan a través de la herramienta con `proton run`. Pendiente de revisar.
+
 ### Consecuencias para el plan
 
 - **Hito 6.** El script `proton` debe implementar el contrato anterior (`waitforexitandrun`, `run`,
   `getcompatpath`) y poner `compatibilitytool.vdf` con `to_oslist macos`.
-- **Hito 7.** Con la herramienta registrada, el propio Steam descarga los depots de Windows. DepotDownloader
-  pasa a ser solo un plan B.
+- **Hito 7.** Con la herramienta registrada, el propio Steam descarga los depots de Windows (steamcmd aislado).
+  DepotDownloader pasa a ser solo un plan B. Para que los juegos tengan Steam API hay que lanzarlos con el
+  cliente gráfico abierto: `pmac run` llama directamente a `proton run`, con las variables de Steam, mientras
+  el GUI sirve el IPC; o bien, en el hito 9, el propio GUI lanza la herramienta.
 - **Hito 9.** Ya no hacen falta hooks del chequeo de oslist ni del lanzamiento, ni una copia re-firmada: basta
   con invertir **un** booleano. Es la demostración de que el soporte nativo de Valve sería un cambio de
   una línea (`oslist == linux` → `oslist in {linux, macos}`).

@@ -45,7 +45,9 @@ steam-hook/ (experimental, opt-in): integración en copia re-firmada de Steam.ap
   `--with-wine-tools` (ver `scripts/build-macos.sh`).
 - `steam_osx` no tiene hardened runtime; `/Applications/Steam.app` sí. Steam Play está compilado en el
   cliente de Mac y lo desactiva un único chequeo (`docs/research/03-platform-and-launch.md`).
-- steamcmd en `~/.local/opt/steamcmd` (comparte `~/Library/Application Support/Steam` con el GUI).
+- steamcmd en `~/.local/opt/steamcmd`. **Usarlo siempre con `scripts/steamcmd.sh`**, que le da un HOME propio
+  (`~/.local/share/proton-macos/steamcmd-home`). Si comparte `~/Library/Application Support/Steam` con el
+  Steam gráfico, cada cliente sobrescribe el token de sesión del otro (`config.vdf` → `ConnectCache`).
   No reiniciar el Steam gráfico para hacer pruebas: usar steamcmd.
 - REA (MCP + CLI `npx rea-agents`) para ingeniería inversa de binarios.
 
