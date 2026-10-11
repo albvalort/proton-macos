@@ -26,8 +26,8 @@ cuatro opciones:
 - DXVK-macOS 1.10.3 (Gcenx, zlib) aporta `d3d11`/`d3d10core`. `dxgi`, `d3d9` y `d3d12` son los de Wine, este
   último con vkd3d sobre winevulkan → MoltenVK.
 - Wine se compila con Vulkan contra MoltenVK 1.4.2 (binario oficial universal, que se empaqueta junto a Wine).
-- **KosmicKrisp:** el selector queda preparado (`PROTON_MAC_VULKAN=moltenvk|kosmickrisp`), pero hoy no puede
-  funcionar con Wine x86_64. Haría falta el lado unix de Wine en arm64, con los PE x86 traducidos por otro
+- **KosmicKrisp:** no se integra por ahora (no hay selector implementado), porque no puede funcionar con Wine
+  x86_64. Haría falta el lado unix de Wine en arm64, con los PE x86 traducidos por otro
   mecanismo, o renderizado fuera de proceso. Se revisará si LunarG publica un slice x86_64.
 
 ## Consecuencias
