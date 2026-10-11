@@ -1,0 +1,2 @@
+extend-exclude = ["external"]
+line-length = 110

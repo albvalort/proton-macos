@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-15  # Apple Silicon (arm64)
+    steps:
+      # Submodules are not needed for linting and are large (Wine ~400 MB even shallow).
+      - uses: actions/checkout@v4
+
+      - name: Environment check
+        run: scripts/doctor.sh --ci
+
+      - name: Install linters
+        run: brew install shellcheck ruff
+
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+
+      - name: ruff
+        run: ruff check .

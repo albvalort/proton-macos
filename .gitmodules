@@ -1,0 +1,10 @@
+[submodule "external/proton"]
+	path = external/proton
+	url = https://github.com/albvalort/Proton.git
+	branch = macos
+	shallow = true
+[submodule "external/wine"]
+	path = external/wine
+	url = https://github.com/albvalort/wine.git
+	branch = macos
+	shallow = true

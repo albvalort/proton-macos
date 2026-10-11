@@ -1,0 +1,40 @@
+Proton-macOS
+Copyright (c) 2026, Proton-macOS contributors
+
+Code written for this project (scripts/, tools/, launcher/, steam-hook/, docs/) is licensed under
+the BSD 3-Clause License (see LICENSE). This project builds on third-party software under its own
+licenses. Those components are NOT relicensed:
+
+  Proton (external/proton, fork of https://github.com/ValveSoftware/Proton)
+    Licensed per component; the Proton build system and scripts are BSD-3-Clause.
+    Copyright (c) Valve Corporation and contributors.
+
+  Wine (external/wine, fork of https://github.com/ValveSoftware/wine)
+    GNU Lesser General Public License, version 2.1 or later.
+    Copyright (c) the Wine project authors (see external/wine/AUTHORS).
+    Patches made by this project to Wine are LGPL-2.1-or-later and documented in
+    docs/patches/wine.md.
+
+  lsteamclient (part of Proton)
+    BSD-3-Clause. Includes Steamworks SDK headers, distributed by Valve under the
+    Steamworks SDK Access Agreement.
+
+  llvm-mingw (build toolchain, not redistributed)
+    Apache License 2.0 with LLVM Exceptions. https://github.com/mstorsjo/llvm-mingw
+
+  DXVK, MoltenVK and other graphics components (when integrated)
+    zlib (DXVK) and Apache-2.0 (MoltenVK). Listed here as they are added.
+
+NOT INCLUDED, NOT REDISTRIBUTED:
+
+  Apple Game Porting Toolkit / D3DMetal / MetalFX
+    Proprietary Apple software. This project never ships, copies or bundles any part of it.
+    It only detects an installation the user obtained from Apple and points Wine at it.
+    Users are responsible for complying with Apple's license terms.
+
+  Steam client and steamclient.dylib
+    Proprietary Valve software. Loaded at runtime from the user's own Steam installation;
+    never copied or modified on disk.
+
+"Steam", "Proton" and "Valve" are trademarks of Valve Corporation. This project is not
+affiliated with, endorsed by or supported by Valve or Apple.
