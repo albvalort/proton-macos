@@ -39,6 +39,14 @@ steam-hook/ (experimental, opt-in): integración en copia re-firmada de Steam.ap
 - Toolchains en espacio de usuario: `~/.local/opt/llvm-mingw` (PE), `~/.local/opt/ghidra_*` (análisis).
 - Homebrew ya no admite x86_64: las dependencias unix x86_64 de Wine se compilan con `scripts/build-deps.sh`
   en `~/.local/opt/proton-macos-deps/x86_64`. Nunca usar Homebrew de `/opt/homebrew` (arm64) para enlazar Wine.
+- **Las Command Line Tools de macOS 27 son solo arm64** (clang, make, ld y también `libxcrun`): nada de
+  `arch -x86_64` para compilar. Se hace compilación cruzada desde arm64 (`clang -arch x86_64`,
+  `--build=aarch64-apple-darwin --host=x86_64-apple-darwin`). Wine usa sus herramientas nativas arm64 vía
+  `--with-wine-tools` (ver `scripts/build-macos.sh`).
+- `steam_osx` no tiene hardened runtime; `/Applications/Steam.app` sí. Steam Play está compilado en el
+  cliente de Mac y lo desactiva un único chequeo (`docs/research/03-platform-and-launch.md`).
+- steamcmd en `~/.local/opt/steamcmd` (comparte `~/Library/Application Support/Steam` con el GUI).
+  No reiniciar el Steam gráfico para hacer pruebas: usar steamcmd.
 - REA (MCP + CLI `npx rea-agents`) para ingeniería inversa de binarios.
 
 ## Reglas
@@ -67,4 +75,6 @@ upstream: inglés.
 
 ## Comandos
 
-- `scripts/doctor.sh` — comprueba el entorno (salida verde/amarilla/roja; código ≠0 si falta algo crítico)
+- `scripts/doctor.sh [--ci]` — comprueba el entorno (código ≠0 si falta algo crítico)
+- `scripts/build-deps.sh` — dependencias unix x86_64 de Wine (freetype…) en `~/.local/opt/proton-macos-deps/x86_64`
+- `scripts/build-macos.sh [prepare|tools|wine|all]` — Wine en `build/`, instalado en `dist/wine`

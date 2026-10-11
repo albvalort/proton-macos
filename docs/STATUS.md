@@ -3,8 +3,8 @@
 | Hito | Descripción | Estado |
 |---|---|---|
 | 0 | Entorno e investigación de bloqueos | ✅ Hecho. `doctor.sh` sin fallos críticos; (a), (b) y (c) respondidas con evidencia ([findings](research/00-findings.md)) |
-| 1 | Esqueleto del repo, forks y CI | 🚧 En curso |
-| 2 | Wine de Valve compilando en macOS | ⏳ |
+| 1 | Esqueleto del repo, forks y CI | ✅ Hecho. Forks `albvalort/Proton` y `albvalort/wine` (rama `macos`), clon con submódulos verificado, CI en verde |
+| 2 | Wine de Valve compilando en macOS | ✅ Compila (cruzado arm64→x86_64) con 9 parches ([patches/wine.md](patches/wine.md)). `wine cmd` funciona; `notepad` y `winecfg` abren ventanas nativas (pendiente tu validación visual) |
 | 3 | Gráficos: D3DMetal con fallback a DXVK | ⏳ Requiere que el usuario instale GPTK |
 | 4 | msync | ⏳ |
 | 5 | Puente lsteamclient → steamclient.dylib | ⏳ Diseño en proceso confirmado; faltan 2 exportaciones (parche menor) |
