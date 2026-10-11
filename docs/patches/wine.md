@@ -19,6 +19,7 @@ Wine upstream 11.0 compila en macOS. Los fallos vienen de código que Valve aña
 | 6 | `dlls/amd_ags_x64/unixlib.c` | `xf86drm.h`/`amdgpu.h` (libdrm, Linux) | Implementación solo con `HAVE_XF86DRM_H && HAVE_AMDGPU_DRM_H`; si no, `STATUS_NOT_SUPPORTED` | propio |
 | 8 | `dlls/ntdll/unix/signal_x86_64.c` (`dump_syscall_fault_return`) | `jmp %rcx` sin `*`: GNU as lo acepta con aviso, pero el ensamblador integrado de clang lo rechaza | `jmp *%rcx` (misma semántica; candidato a upstream de Proton) | propio |
 | 9 | `dlls/ntdll/unix/system.c` | `fill_cpu_override` (hack de Valve) usa `sysfs_parse_bitmap`/`fill_performance_core_info`, definidas solo en Linux | Stubs fuera de Linux: el override de CPU sigue funcionando, pero sin preferencia por los núcleos de rendimiento | propio |
+| 10 | `server/token.c` | El SID de usuario se deriva de `/etc/machine-id`, que no existe en macOS | `gethostuuid()` (commit `040be76`) | propio |
 | 7 | `dlls/winegstreamer/media-converter/media-converter.h` | `pthread_mutex_t` sin `#include <pthread.h>` (glibc lo arrastra indirectamente) | Añadir el include | propio |
 
 ## Opciones de configure (no son parches)

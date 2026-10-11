@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# build-lsteamclient.sh — builds Proton's lsteamclient (external/proton/lsteamclient) against our
-# Wine build, the same way Proton's make/rules-makedep.mk does: reuse Wine's generated Makefile,
-# point SUBDIRS at the lsteamclient sources and let Wine's makedep generate the rules.
+# build-proton-modules.sh — builds Proton's Wine modules against our Wine build, the same way
+# Proton's make/rules-makedep.mk does: reuse Wine's generated Makefile, point SUBDIRS at the module
+# sources and let Wine's makedep generate the rules.
 #
-# Produces lsteamclient.dll (i386 + x86_64 PE) and lsteamclient.so (x86_64 unix side, which
-# dlopen()s the Steam client's steamclient.dylib) and installs them into $DIST_DIR/lib/wine.
+#   lsteamclient  external/proton/lsteamclient → lsteamclient.dll (i386 + x86_64) + lsteamclient.so
+#                 (the unix side dlopen()s the Steam client's steamclient.dylib)
+#   steamexe      external/proton/steam_helper → steam.exe (i386 + x86_64), Proton's launcher stub
 #
+# Usage: scripts/build-proton-modules.sh [module...]   (default: all)
 # Requires: scripts/build-macos.sh (tools + wine) to have run.
 set -euo pipefail
 
@@ -17,8 +19,6 @@ JOBS="$(sysctl -n hw.ncpu)"
 
 WINE_OBJ="$BUILD_DIR/wine-x86_64"
 TOOLS="$BUILD_DIR/wine-tools"
-SRC="$BUILD_DIR/src-lsteamclient"
-OBJ="$BUILD_DIR/obj-lsteamclient-x86_64"
 
 export PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/flex/bin:$PATH:$LLVM_MINGW/bin"
 export MACOSX_DEPLOYMENT_TARGET=11.0
@@ -27,12 +27,15 @@ log() { printf '\033[1m==> %s\033[0m\n' "$*" >&2; }
 
 [[ -f "$WINE_OBJ/Makefile" ]] || { echo "Wine build not found in $WINE_OBJ; run build-macos.sh" >&2; exit 1; }
 
-log "Syncing lsteamclient sources"
-rsync -a --delete --exclude .git "$ROOT/external/proton/lsteamclient/" "$SRC/"
-mkdir -p "$OBJ"
+build_module() {
+  local name=$1 srcdir=$2
+  local SRC="$BUILD_DIR/src-$name" OBJ="$BUILD_DIR/obj-$name-x86_64"
+  log "Syncing $name sources"
+  rsync -a --delete --exclude .git "$ROOT/external/proton/$srcdir/" "$SRC/"
+  mkdir -p "$OBJ"
 
-log "Generating Makefile from Wine's"
-WINE_OBJ="$WINE_OBJ" SRC="$SRC" OBJ="$OBJ" python3 - <<'EOF'
+  log "Generating Makefile from Wine's"
+  WINE_OBJ="$WINE_OBJ" SRC="$SRC" OBJ="$OBJ" python3 - <<'EOF'
 import os
 wine_obj, src, obj = os.environ["WINE_OBJ"], os.environ["SRC"], os.environ["OBJ"]
 out, skip_continuation = [], False
@@ -67,14 +70,31 @@ for line in open(f"{wine_obj}/Makefile").read().split("\n"):
 open(f"{obj}/Makefile", "w").write("\n".join(out) + "\n")
 EOF
 
-(cd "$OBJ" && "$TOOLS/tools/makedep")
+  (cd "$OBJ" && "$TOOLS/tools/makedep")
 
-log "Building lsteamclient"
-make -C "$OBJ" -j"$JOBS"
+  log "Building $name"
+  make -C "$OBJ" -j"$JOBS"
 
-log "Installing into $DIST_DIR"
-M="$OBJ/dlls/src-lsteamclient"
-install -m 755 "$M/lsteamclient.so" "$DIST_DIR/lib/wine/x86_64-unix/lsteamclient.so"
-install -m 644 "$M/x86_64-windows/lsteamclient.dll" "$DIST_DIR/lib/wine/x86_64-windows/lsteamclient.dll"
-install -m 644 "$M/i386-windows/lsteamclient.dll" "$DIST_DIR/lib/wine/i386-windows/lsteamclient.dll"
+  log "Installing $name into $DIST_DIR"
+  local f arch
+  # makedep places outputs under dlls/src-<name>/ or programs/src-<name>/ depending on the module type.
+  for arch in i386 x86_64; do
+    while IFS= read -r -d '' f; do
+      install -m 644 "$f" "$DIST_DIR/lib/wine/$arch-windows/$(basename "$f")"
+    done < <(find "$OBJ" -path "*/src-$name/$arch-windows/*" \( -name '*.dll' -o -name '*.exe' \) -print0)
+  done
+  while IFS= read -r -d '' f; do
+    install -m 755 "$f" "$DIST_DIR/lib/wine/x86_64-unix/$(basename "$f")"
+  done < <(find "$OBJ" -path "*/src-$name/*" -maxdepth 4 -name '*.so' -print0)
+}
+
+modules=("$@")
+[[ ${#modules[@]} -gt 0 ]] || modules=(lsteamclient steamexe)
+for m in "${modules[@]}"; do
+  case "$m" in
+    lsteamclient) build_module lsteamclient lsteamclient ;;
+    steamexe)     build_module steamexe steam_helper ;;
+    *) echo "unknown module: $m" >&2; exit 2 ;;
+  esac
+done
 log "Done"

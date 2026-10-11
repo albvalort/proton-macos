@@ -8,7 +8,7 @@
 | 3 | Gráficos: D3DMetal con fallback a DXVK | ⏳ Requiere que el usuario instale GPTK |
 | 4 | msync | ⏳ |
 | 5 | Puente lsteamclient → steamclient.dylib | ✅ Hecho. `tests/steam-bridge/steamtest.exe` (Wine en macOS) conecta con el Steam en marcha, lee usuario y AppID y desbloquea `ACH_WIN_ONE_GAME` de Spacewar; el perfil público muestra "1 of 5". Parches en [patches/proton.md](patches/proton.md) |
-| 6 | Script `proton` para macOS | ⏳ Contrato capturado en `research/03 §2.2` |
+| 6 | Script `proton` para macOS | 🟡 `proton run`/`waitforexitandrun` funcionan como en Linux: `steamtest.exe` (Spacewar) habla con Steam y **Minimalism (PE32, D3D9→wined3d→OpenGL) arranca a pantalla completa**. Pendiente: lanzarlo desde Steam (steamcmd `app_run`) con el mapeo a `proton_macos` |
 | 7 | Launcher y descarga de depots | ⏳ Steam ya descarga depots de Windows con Steam Play activo |
 | 8 | Rendimiento | ⏳ |
 | 9 | Integración en el cliente de Steam | 🔬 Validada con steamcmd ([ADR 0002](adr/0002-steam-play-integration.md)) |
