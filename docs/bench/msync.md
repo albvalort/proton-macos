@@ -37,5 +37,6 @@ impacto real se medirá con juegos en el hito 8.
 
 ## Estabilidad
 
-`tests/msync/stress.sh 30`: 30 minutos de `synctest` de 64 y 32 bits en bucle. El resultado está al final de
-este fichero.
+`tests/msync/stress.sh 30` (64 y 32 bits en bucle) se interrumpió a petición del usuario antes de los 30 minutos,
+sin ningún fallo ni cuelgue registrado hasta ese momento. Además, Minimalism funcionó con msync activo.
+**Pendiente:** completar la sesión de 30 minutos con un juego (criterio del hito 4).
