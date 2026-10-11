@@ -7,6 +7,7 @@
 #   compatibilitytool.vdf         from_oslist windows → to_oslist macos
 #   version
 #   files/{bin,lib,share}         Wine + lsteamclient + steam.exe (dist/wine)
+#   bin/pmac                      the launcher (launcher/), if cargo is available
 #
 # Usage: scripts/package.sh [--install]
 #   --install  symlink the tool into the compatibilitytools.d of the Steam client and of steamcmd
@@ -47,6 +48,13 @@ sed -e "s/##INTERNAL_TOOL_NAME##/$TOOL_NAME/" -e "s/##BUILD_NAME##/$DISPLAY_NAME
     -e 's/"to_oslist"    "linux"/"to_oslist"    "macos"/' \
     "$PROTON_SRC/compatibilitytool.vdf.template" > "$TOOL_DIR/compatibilitytool.vdf"
 grep -q '"to_oslist"    "macos"' "$TOOL_DIR/compatibilitytool.vdf"
+
+if command -v cargo >/dev/null; then
+  log "Building pmac"
+  cargo build --release --quiet --manifest-path "$ROOT/launcher/Cargo.toml"
+  install -d "$TOOL_DIR/bin"
+  install -m 755 "$ROOT/launcher/target/release/pmac" "$TOOL_DIR/bin/pmac"
+fi
 
 proton_rev="$(git -C "$PROTON_SRC" describe --tags --always 2>/dev/null || echo unknown)"
 wine_rev="$(git -C "$ROOT/external/wine" describe --tags --always 2>/dev/null || echo unknown)"

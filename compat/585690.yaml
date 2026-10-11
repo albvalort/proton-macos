@@ -1,0 +1,6 @@
+name: Minimalism
+status: runs
+backend: dxvk
+notes: >-
+  32-bit D3D9 game shipped as an IExpress self-extractor; fullscreen with wined3d's D3D9
+  (DXVK-macOS has no D3D9). Launched from Steam Play (steamcmd) too. Tested 2026-10-11 on M2.

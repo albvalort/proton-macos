@@ -1,0 +1,6 @@
+name: Downwell
+status: menu
+backend: dxvk
+notes: >-
+  D3D11 (GameMaker). Menu at 60 fps (vsync) with DXVK-macOS on MoltenVK and with wined3d.
+  Gameplay not validated yet. Tested 2026-10-12 on M2, macOS 27.0.1.

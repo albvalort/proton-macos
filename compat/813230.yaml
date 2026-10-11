@@ -1,0 +1,7 @@
+name: ANIMAL WELL
+status: menu
+backend: dxvk
+notes: >-
+  D3D12 only. Works with Wine's vkd3d on MoltenVK (default) and with D3DMetal
+  (PROTON_MAC_GFX=d3dmetal, needs the user's own Game Porting Toolkit); 60 fps (vsync) in the menu.
+  Tested 2026-10-12 on M2, macOS 27.0.1.

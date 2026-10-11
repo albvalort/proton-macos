@@ -3,3 +3,4 @@
 *.dylib
 /build/
 /dist/
+/launcher/target/
