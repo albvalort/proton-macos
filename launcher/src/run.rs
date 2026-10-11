@@ -5,6 +5,7 @@ use crate::appinfo::AppInfo;
 use crate::compat::Compat;
 use crate::steam;
 use anyhow::{bail, Context, Result};
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -100,6 +101,38 @@ pub fn run(
                 cmd.env(k, v);
             }
         }
+    }
+    // Steam injects its overlay into what it launches (DYLD_INSERT_LIBRARIES); that is meant for
+    // native games and must not reach Wine. PMAC_KEEP_DYLD_INSERT=1 keeps it for experiments.
+    let injected = std::env::var("DYLD_INSERT_LIBRARIES").ok();
+    if std::env::var_os("PMAC_KEEP_DYLD_INSERT").is_none() {
+        cmd.env_remove("DYLD_INSERT_LIBRARIES");
+    }
+
+    // Without a terminal (e.g. launched from Steam) nobody sees the output: keep it in a log.
+    let log_path = steam::home()
+        .join("Library/Logs/proton-macos")
+        .join(format!("{}.log", info.appid));
+    if !std::io::stderr().is_terminal() {
+        std::fs::create_dir_all(log_path.parent().unwrap())?;
+        let mut log = std::fs::File::create(&log_path)?;
+        writeln!(
+            log,
+            "pmac run {} ({}) via {}",
+            info.appid,
+            plan.exe.display(),
+            proton.display()
+        )?;
+        for (k, v) in std::env::vars().filter(|(k, _)| {
+            k.starts_with("DYLD_")
+                || k.starts_with("Steam")
+                || k.starts_with("STEAM_")
+                || k == "PATH"
+        }) {
+            writeln!(log, "env {k}={v}")?;
+        }
+        writeln!(log, "removed DYLD_INSERT_LIBRARIES: {:?}", injected)?;
+        cmd.stdout(log.try_clone()?).stderr(log);
     }
     eprintln!(
         "pmac: running {} ({}) via {}",

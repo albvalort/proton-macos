@@ -41,6 +41,7 @@ Portado desde el código LGPL de **CrossOver 26.0** (Wine 11.0, © CodeWeavers),
 | Precarga de `libd3dshared` y notificación `pe_module_loaded` | Rango de direcciones para elegir el ABI y aviso de módulos PE nativos. |
 | `winemac.drv`: `d3dmetal.c`, `d3dmetal_objc.m` (tabla `macdrv_functions`, vistas Metal, callbacks del registro) | D3DMetal busca `macdrv_functions` con `dlsym`; sin ella falla con `Assertion failed: (drv)`. |
 | `win32u`: `client_surface_attach()` (propio) | En CrossOver, `client_surface_create` registra la surface en la ventana; en upstream no. Sin esto, la vista Metal se quedaba con el tamaño inicial (imagen en la esquina sobre fondo azul). |
+| `wow64cpu`: transiciones 32↔64 con `lretq` bajo Rosetta 2 (CrossOver, CW HACK 20760), commit `8152fab` | Con el modelo de TEB de CrossOver, sin esto las excepciones de código de 32 bits se despachaban con la pila de 64 y los juegos WoW64 (Downwell, Minimalism) se cerraban ("Exception frame is not in stack limits"). |
 | `ntdll`: `WINEDLLPATH_PREPEND` (propio) | Wine busca primero en su propio directorio y después en `WINEDLLPATH`. Así los módulos de GPTK se usan desde un directorio de enlaces del prefijo, sin tocar la instalación. |
 
 ## Pendiente de revisar
