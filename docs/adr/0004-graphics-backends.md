@@ -1,6 +1,6 @@
 # ADR 0004: Backends gráficos en macOS
 
-- Estado: aceptada (D3DMetal pendiente de que el usuario instale GPTK)
+- Estado: aceptada (los tres backends funcionan; D3DMetal validado con GPTK 4.0 beta 2)
 - Fecha: 2026-10-11
 
 ## Contexto
@@ -18,7 +18,11 @@ cuatro opciones:
 ## Decisión
 
 - `PROTON_MAC_GFX=dxvk|d3dmetal|wined3d` en el script `proton`. Por defecto: **dxvk** si está empaquetado; si
-  no, wined3d. `d3dmetal` solo si se detecta GPTK (`PROTON_MAC_GPTK` o rutas conocidas) y siempre opt-in.
+  no, wined3d. `d3dmetal` es siempre opt-in y solo funciona si se detecta GPTK (`PROTON_MAC_GPTK`,
+  `~/Library/Application Support/proton-macos/gptk/*/redist/lib` o el entorno de evaluación montado). Sus
+  módulos se enlazan en `<compatdata>/gptk/` y se buscan antes que los de Wine (`WINEDLLPATH_PREPEND`). No se
+  copia nada de Apple. Integración en Wine portada de CrossOver: ver `docs/patches/wine.md`. Solo x86_64 (GPTK
+  no trae módulos de 32 bits).
 - DXVK-macOS 1.10.3 (Gcenx, zlib) aporta `d3d11`/`d3d10core`. `dxgi`, `d3d9` y `d3d12` son los de Wine, este
   último con vkd3d sobre winevulkan → MoltenVK.
 - Wine se compila con Vulkan contra MoltenVK 1.4.2 (binario oficial universal, que se empaqueta junto a Wine).

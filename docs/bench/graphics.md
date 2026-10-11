@@ -9,7 +9,7 @@ calentamiento, en el menú principal (escena repetible). Datos en bruto: [result
 | Downwell (360740) | D3D11 | `dxvk` | DXVK-macOS → MoltenVK → Metal | 60,0 | 60,0 |
 | Downwell (360740) | D3D11 | `wined3d` | wined3d → OpenGL 4.1 | 59,7 | 58,3 |
 | ANIMAL WELL (813230) | D3D12 | `dxvk` (*) | vkd3d de Wine → MoltenVK → Metal | 60,0 | 60,0 |
-| — | D3D11/12 | `d3dmetal` | GPTK de Apple | pendiente | — |
+| ANIMAL WELL (813230) | D3D12 | `d3dmetal` | D3DMetal (GPTK 4.0 beta 2) → Metal | 60,0 | 60,0 |
 
 (*) Con DXVK-macOS solo se sustituyen D3D10/11; D3D12 usa el `d3d12` de Wine (vkd3d) en cualquier backend salvo
 `d3dmetal`.
@@ -23,4 +23,6 @@ Notas:
 - El HUD de Metal puede dejar de registrar si el juego recrea la cadena de presentación (le pasó a Downwell
   con DXVK). Por eso `bench.sh` también recoge la traza `+fps` de Wine y se queda con la fuente que tenga más
   muestras.
-- Pendiente de validación visual del usuario: que los dos juegos se vean bien y se puedan jugar.
+- D3DMetal validado visualmente por el usuario con ANIMAL WELL (pantalla completa). Comparar el rendimiento de
+  D3DMetal frente a vkd3d exige una escena sin vsync o más pesada (hito 8).
+- Downwell (DXVK) pendiente de validación visual del usuario.

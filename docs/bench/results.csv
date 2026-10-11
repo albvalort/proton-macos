@@ -2,3 +2,5 @@ date,appid,exe,backend,avg_fps,min_fps,low1_fps,samples,source
 2026-10-12,360740,Downwell.exe,dxvk,60.0,60.0,60.0,9,wine-fps
 2026-10-12,360740,Downwell.exe,wined3d,59.7,58.3,58.3,12,wine-fps
 2026-10-12,813230,Animal Well.exe,dxvk,60.0,60.0,60.0,28,metal-hud
+2026-10-12,813230,Animal Well.exe,d3dmetal,60.0,60.0,60.0,28,metal-hud
+2026-10-12,813230,Animal Well.exe,dxvk,60.0,60.0,60.0,28,metal-hud

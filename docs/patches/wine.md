@@ -29,6 +29,20 @@ Wine upstream 11.0 compila en macOS. Los fallos vienen de código que Valve aña
 - Las herramientas nativas (arm64) se compilan con FreeType de Homebrew: `sfnt2fon` lo necesita para
   generar las fuentes `.fon`.
 
+## D3DMetal (hito 3)
+
+Portado desde el código LGPL de **CrossOver 26.0** (Wine 11.0, © CodeWeavers), con fusión a tres bandas
+(upstream 11.0 como base, Valve y CrossOver como ramas). Commits `e6dd133`, `0c7cc18` y `d04f1c7`.
+
+| Pieza | Por qué la necesita D3DMetal |
+|---|---|
+| Modelo de TEB de CrossOver en macOS x86_64 (`signal_x86_64.c`, `thread.c`, `loader.c`) | Upstream/Valve cambian la base de `%gs` al pasar entre PE y unix. El código unix de `libd3dshared` llama a `pthread_self()` en hilos de Wine y se colgaba en `pthread_setname_np` con `%gs` apuntando al TEB. CrossOver deja `%gs` fijo en el TSD de pthread y copia ahí `Self`, el puntero TLS y el `Peb`. Como macOS usa el slot `0x60` para `localtime()`, este se redirige a un búfer TLS. |
+| Envoltorios ms_abi (`GPT_ABI_WRAPPER`) en `NtCreateThreadEx`, `NtClose` y las funciones de eventos y semáforos | `libd3dshared` llama a esas funciones de `ntdll` con la convención de llamada de Windows. Sin los envoltorios, los argumentos llegaban mal y un hilo se quedaba esperando una respuesta del servidor que nunca llegaba. |
+| Precarga de `libd3dshared` y notificación `pe_module_loaded` | Rango de direcciones para elegir el ABI y aviso de módulos PE nativos. |
+| `winemac.drv`: `d3dmetal.c`, `d3dmetal_objc.m` (tabla `macdrv_functions`, vistas Metal, callbacks del registro) | D3DMetal busca `macdrv_functions` con `dlsym`; sin ella falla con `Assertion failed: (drv)`. |
+| `win32u`: `client_surface_attach()` (propio) | En CrossOver, `client_surface_create` registra la surface en la ventana; en upstream no. Sin esto, la vista Metal se quedaba con el tamaño inicial (imagen en la esquina sobre fondo azul). |
+| `ntdll`: `WINEDLLPATH_PREPEND` (propio) | Wine busca primero en su propio directorio y después en `WINEDLLPATH`. Así los módulos de GPTK se usan desde un directorio de enlaces del prefijo, sin tocar la instalación. |
+
 ## Pendiente de revisar
 
 - `err:virtual:try_map_free_area mmap() error Cannot allocate memory` cerca de `0x7fffffff0000` en cada
