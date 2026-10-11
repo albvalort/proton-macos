@@ -16,8 +16,8 @@ existía en Proton y funciona sin cambios.
 
 ## Build
 
-`scripts/build-lsteamclient.sh` replica `make/rules-makedep.mk` de Proton: reutiliza el `Makefile` generado del
-build de Wine, apunta `SUBDIRS` a las fuentes de lsteamclient y genera las reglas con `makedep`. El lado unix se
+`scripts/build-proton-modules.sh` replica `make/rules-makedep.mk` de Proton: reutiliza el `Makefile` generado del
+build de Wine, apunta `SUBDIRS` a las fuentes del módulo (lsteamclient, steam_helper) y genera las reglas con `makedep`. El lado unix se
 enlaza contra `ntdll.so` mediante `LDFLAGS`; Proton lo hace con `UNIX_LIBS`.
 
 ## Script `proton` (hito 6)
