@@ -25,6 +25,13 @@ Proton de referencia: `proton-11.0-2`.
 3. Riesgo nuevo, sin verificar: `steamclient.dylib` enlaza AppKit/Carbon y podría interferir con el
    `NSApplication` de winemac.drv al cargarse dentro del proceso de Wine.
 
+## Validación posterior (hito 5, 2026-10-11)
+
+La conclusión (a)/(b) quedó confirmada de extremo a extremo: un `.exe` de Windows bajo nuestro Wine carga
+`lsteamclient.so`, que hace `dlopen` del `steamclient.dylib` x86_64 del cliente en ejecución. Funcionan
+`CreateInterface`, pipe/usuario, `BLoggedOn`, `GetAppID`, `GetPersonaName`, `RequestCurrentStats`,
+`SetAchievement` y `StoreStats` con sus callbacks. No hizo falta ningún proceso auxiliar con IPC.
+
 ## Estado del entorno (`scripts/doctor.sh`)
 
 Comprobaciones críticas en verde. Avisos pendientes que no se pueden automatizar:
