@@ -28,11 +28,13 @@ fn run(cmd: &mut Command) -> Result<()> {
 }
 
 /// Interactive QR login (scan with the Steam mobile app). Fetches the manifest of Spacewar
-/// (480, owned by everyone) as the cheapest authenticated request.
-pub fn login(username: &str) -> Result<()> {
+/// (480, owned by everyone) as the cheapest authenticated request. DepotDownloader refuses
+/// `-username` with `-qr`: it takes the account from the QR session and stores the token under
+/// that name, which `install` then reuses with `-username <name> -remember-password`.
+pub fn login() -> Result<()> {
     let tmp = std::env::temp_dir().join("pmac-login");
     run(Command::new(depotdownloader()?)
-        .args(["-qr", "-remember-password", "-username", username])
+        .args(["-qr", "-remember-password"])
         .args(["-app", "480", "-manifest-only", "-dir"])
         .arg(&tmp))
 }

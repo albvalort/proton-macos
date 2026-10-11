@@ -29,11 +29,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Log in for downloads with a QR code (scan it with the Steam mobile app). No password is asked.
-    Login {
-        /// Account name (default: the most recent Steam account on this Mac)
-        #[arg(long)]
-        username: Option<String>,
-    },
+    Login,
     /// List games in the Steam library
     List {
         /// Include games with a native macOS version
@@ -88,11 +84,12 @@ fn username(arg: Option<String>) -> Result<String> {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Cmd::Login { username: user } => {
-            let user = username(user)?;
-            eprintln!("pmac: logging in as {user}: scan the QR code with the Steam mobile app");
-            depots::login(&user)?;
-            eprintln!("pmac: logged in; DepotDownloader keeps the session token");
+        Cmd::Login => {
+            eprintln!("pmac: scan the QR code with the Steam mobile app");
+            depots::login()?;
+            eprintln!(
+                "pmac: logged in; DepotDownloader keeps the session token for `pmac install`"
+            );
         }
         Cmd::List { all, json } => {
             let library: std::collections::HashSet<u32> =
