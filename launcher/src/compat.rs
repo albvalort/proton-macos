@@ -35,8 +35,13 @@ fn search_dirs() -> Vec<PathBuf> {
         dirs.push(PathBuf::from(d));
     }
     dirs.push(crate::steam::data_dir().join("compat"));
-    // Development tree: <repo>/launcher/target/<profile>/pmac -> <repo>/compat
-    if let Ok(exe) = std::env::current_exe() {
+    // Resolve symlinks: install.sh links ~/.local/bin/pmac to the tool.
+    if let Ok(exe) = std::env::current_exe().and_then(|p| p.canonicalize()) {
+        // Installed tool: <tool>/bin/pmac -> <tool>/compat
+        if let Some(tool) = exe.ancestors().nth(2) {
+            dirs.push(tool.join("compat"));
+        }
+        // Development tree: <repo>/launcher/target/<profile>/pmac -> <repo>/compat
         if let Some(repo) = exe.ancestors().nth(4) {
             dirs.push(repo.join("compat"));
         }

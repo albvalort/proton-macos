@@ -8,6 +8,8 @@
 #   version
 #   files/{bin,lib,share}         Wine + lsteamclient + steam.exe (dist/wine)
 #   bin/pmac                      the launcher (launcher/), if cargo is available
+#   compat/                       per-game settings read by pmac
+#   LICENSE, NOTICE
 #
 # Usage: scripts/package.sh [--install]
 #   --install  symlink the tool into the compatibilitytools.d of the Steam client and of steamcmd
@@ -55,6 +57,9 @@ if command -v cargo >/dev/null; then
   install -d "$TOOL_DIR/bin"
   install -m 755 "$ROOT/launcher/target/release/pmac" "$TOOL_DIR/bin/pmac"
 fi
+
+rsync -a --delete "$ROOT/compat/" "$TOOL_DIR/compat/"
+install -m 644 "$ROOT/LICENSE" "$ROOT/NOTICE" "$TOOL_DIR/"
 
 proton_rev="$(git -C "$PROTON_SRC" describe --tags --always 2>/dev/null || echo unknown)"
 wine_rev="$(git -C "$ROOT/external/wine" describe --tags --always 2>/dev/null || echo unknown)"

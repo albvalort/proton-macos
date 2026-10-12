@@ -1,0 +1,86 @@
+name: Release
+
+# Builds Wine, Proton's modules and pmac on an Apple Silicon runner and packages them with
+# scripts/release.sh. Pushing a tag vX.Y.Z publishes a GitHub release; a manual run only uploads the
+# archive as a workflow artifact.
+#
+# Nothing from Apple (GPTK/D3DMetal) is downloaded or bundled here: see NOTICE.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the archive name (e.g. 0.1.0-dev)
+        required: true
+        default: 0.0.0-dev
+
+permissions:
+  contents: write
+
+env:
+  LLVM_MINGW_URL: https://github.com/mstorsjo/llvm-mingw/releases/download/20261006/llvm-mingw-20261006-ucrt-macos-universal.tar.xz
+
+jobs:
+  build:
+    runs-on: macos-15  # Apple Silicon (arm64)
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then v="${GITHUB_REF_NAME#v}"; else v="${{ inputs.version }}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Build tools (Homebrew, arm64)
+        # bison/flex: Wine's parsers; autoconf/automake: autoreconf; freetype: sfnt2fon (native tools).
+        run: brew install bison flex autoconf automake pkgconf freetype
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: llvm-mingw
+        run: |
+          mkdir -p ~/.local/opt
+          curl -fsSL "$LLVM_MINGW_URL" | tar -xJ -C ~/.local/opt
+          ln -sfn ~/.local/opt/llvm-mingw-20261006-ucrt-macos-universal ~/.local/opt/llvm-mingw
+
+      - name: Cache x86_64 dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/opt/proton-macos-deps
+            ~/Library/Caches/proton-macos/deps
+          key: deps-${{ runner.os }}-${{ hashFiles('scripts/build-deps.sh') }}
+
+      - name: x86_64 dependencies
+        run: scripts/build-deps.sh
+
+      - name: Wine
+        run: scripts/build-macos.sh all
+
+      - name: Proton modules (lsteamclient, steam.exe)
+        run: scripts/build-proton-modules.sh
+
+      - name: Package
+        run: scripts/release.sh "${{ steps.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proton-macos-${{ steps.version.outputs.version }}
+          path: |
+            dist/proton-macos-*.tar.xz
+            dist/proton-macos-*.tar.xz.sha256
+          if-no-files-found: error
+
+      - name: GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/proton-macos-*.tar.xz dist/proton-macos-*.tar.xz.sha256 \
+            --title "Proton-macOS ${{ steps.version.outputs.version }}" --generate-notes --prerelease

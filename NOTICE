@@ -22,8 +22,23 @@ licenses. Those components are NOT relicensed:
   llvm-mingw (build toolchain, not redistributed)
     Apache License 2.0 with LLVM Exceptions. https://github.com/mstorsjo/llvm-mingw
 
-  DXVK, MoltenVK and other graphics components (when integrated)
-    zlib (DXVK) and Apache-2.0 (MoltenVK). Listed here as they are added.
+  Wine patches derived from CrossOver 26.0 (LGPL-2.1-or-later)
+    Copyright (c) CodeWeavers, Inc. TEB model, D3DMetal hooks and wow64cpu workarounds,
+    documented in docs/patches/wine.md.
+
+  MoltenVK 1.4.2 (bundled in release packages as files/lib/libMoltenVK.dylib)
+    Apache License 2.0. Copyright (c) The Brenwill Workshop Ltd. and the Khronos Group.
+    https://github.com/KhronosGroup/MoltenVK
+
+  DXVK-macOS 1.10.3 (bundled in release packages under files/lib/wine/dxvk)
+    zlib license. Copyright (c) Philip Rebohle and contributors; macOS fork by Gcenx.
+    https://github.com/Gcenx/DXVK-macOS
+
+  FreeType (bundled in release packages as files/lib/libfreetype*.dylib)
+    FreeType License (FTL). Copyright (c) The FreeType Project.
+
+  DepotDownloader (downloaded by install.sh, not bundled)
+    GNU General Public License, version 2. https://github.com/SteamRE/DepotDownloader
 
 NOT INCLUDED, NOT REDISTRIBUTED:
 
