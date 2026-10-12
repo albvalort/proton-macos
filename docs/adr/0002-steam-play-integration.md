@@ -1,34 +1,41 @@
-# ADR 0002: Integración con Steam a través de Steam Play (compatibilitytools.d)
+# ADR 0002: Steam integration through Steam Play (compatibilitytools.d)
 
-- Estado: propuesta (validada con steamcmd; pendiente en el cliente gráfico)
-- Fecha: 2026-10-11
+- Status: proposed (validated with steamcmd; not working in the Steam GUI yet)
+- Date: 2026-10-11
 
-## Contexto
+## Context
 
-El plan original del hito 9 era hookear dos cosas en una copia re-firmada de Steam.app: el chequeo de
-plataforma (`oslist`) y el lanzamiento del juego. La investigación del hito 0
-([03-platform-and-launch.md](../research/03-platform-and-launch.md)) demostró que:
+The original plan for milestone 9 was to hook two things in a re-signed copy of Steam.app: the platform
+check (`oslist`) and the game launch. The milestone 0 research
+([03-platform-and-launch.md](../research/03-platform-and-launch.md)) showed that:
 
-- `CCompatManager` (Steam Play) está compilado en el cliente de Mac y solo lo desactiva
+- `CCompatManager` (Steam Play) is compiled into the Mac client and is only disabled by
   `m_bEnabled = (oslist == "linux")`.
-- Con ese booleano invertido en tiempo de ejecución, Steam registra una herramienta
-  `from_oslist windows / to_oslist macos`, instala el depot de Windows y la lanza con
-  `waitforexitandrun <exe>` y todas las `STEAM_COMPAT_*`.
-- `steam_osx` no tiene hardened runtime, así que `DYLD_INSERT_LIBRARIES` funciona sin re-firmar.
+- With that boolean flipped at runtime, Steam registers a `from_oslist windows / to_oslist macos` tool,
+  installs the Windows depot and launches it with `waitforexitandrun <exe>` and all the `STEAM_COMPAT_*`
+  variables.
+- `steam_osx` has no hardened runtime, so `DYLD_INSERT_LIBRARIES` works without re-signing.
 
-## Decisión
+## Decision
 
-- El producto es una **herramienta de compatibilidad estándar** en `compatibilitytools.d`, con el mismo
-  contrato que en Linux. Funciona igual se instale como se instale.
-- La integración con el cliente (hito 9) se limita a **invertir ese único chequeo** con un shim inyectado,
-  sin modificar ficheros. Detecta el patrón por firma y se desactiva si no lo encuentra.
-- Hasta que el hito 9 sea estable, el camino soportado es el launcher (`pmac`, hito 7) sobre steamcmd con
-  el mismo shim, más accesos directos en la biblioteca.
+- The product is a **standard compatibility tool** in `compatibilitytools.d`, with the same contract as on
+  Linux. It works the same however it is installed.
+- Client integration (milestone 9) is limited to **flipping that single check** with an injected shim,
+  without modifying files. It detects the pattern by signature and disables itself if it is not found.
+- Until milestone 9 is stable, the supported path is the launcher (`pmac`, milestone 7), plus shortcuts in
+  the library.
 
-## Consecuencias
+## Status of the GUI client (2026-10-12)
 
-- El hito 7 puede usar el propio Steam para descargar depots de Windows; DepotDownloader queda como plan B.
-- Para que Valve lo adopte bastaría con cambiar una comparación, lo que hace la propuesta creíble.
-- Riesgo: depender de un detalle interno del cliente. Mitigación: detección por firma y apagado seguro.
-- Riesgo legal/de cuenta: modificar el comportamiento del cliente en tiempo de ejecución. Siempre opt-in,
-  con advertencia y probado con cuentas secundarias.
+- `DYLD_INSERT_LIBRARIES` must not go through SIP-protected binaries (`/usr/bin/nohup`), which strip it.
+- The GUI client is arm64 and gets `V_strnicmp` from a library loaded later with `dlopen`, so dyld
+  interposing (which worked with steamcmd) fails: `symbol not found in flat namespace '_V_strnicmp'`.
+  Another hooking technique is needed; not done.
+
+## Consequences
+
+- Milestone 7 can use Steam itself to download Windows depots; DepotDownloader is plan B.
+- For Valve to adopt it, changing one comparison would be enough, which makes the proposal credible.
+- Risk: depending on a client internal. Mitigation: signature detection and safe shutdown.
+- Legal/account risk: changing the client's behaviour at runtime. Always opt-in, with a warning, and
+  tested with secondary accounts.

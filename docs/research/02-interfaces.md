@@ -1,67 +1,67 @@
-# (b) Interfaces de Steamworks: steamclient.dylib frente a lsteamclient
+# (b) Steamworks interfaces: steamclient.dylib versus lsteamclient
 
-Referencia de Proton: tag `proton-11.0-2` (`lsteamclient/`, SDK más reciente `steamworks_sdk_165`).
+Proton reference: tag `proton-11.0-2` (`lsteamclient/`, newest SDK `steamworks_sdk_165`).
 
-## Símbolos que carga lsteamclient
+## Symbols lsteamclient loads
 
-`lsteamclient/unixlib.cpp`, `steamclient_init()`. **Ya tiene una rama `#ifdef __APPLE__`** que carga
-`$STEAM_COMPAT_CLIENT_INSTALL_PATH/steamclient.dylib` (con `DYLD_*` como alternativa). Después resuelve
-con `LOAD_FUNC` (todos obligatorios: si alguno falla, la inicialización devuelve -1):
+`lsteamclient/unixlib.cpp`, `steamclient_init()`. **It already has an `#ifdef __APPLE__` branch** that loads
+`$STEAM_COMPAT_CLIENT_INSTALL_PATH/steamclient.dylib` (with `DYLD_*` as a fallback). It then resolves with
+`LOAD_FUNC` (all mandatory: if any fails, initialisation returns -1):
 
-| Símbolo | x86_64 | arm64 |
+| Symbol | x86_64 | arm64 |
 |---|---|---|
 | `CreateInterface` | ✅ | ✅ |
 | `Steam_BGetCallback` | ✅ | ✅ |
 | `Steam_GetAPICallResult` | ✅ | ✅ |
 | `Steam_FreeLastCallback` | ✅ | ✅ |
 | `Steam_ReleaseThreadLocalMemory` | ✅ | ✅ |
-| `Steam_IsKnownInterface` | ❌ **no se exporta** | ❌ |
-| `Steam_NotifyMissingInterface` | ❌ **no se exporta** | ❌ |
+| `Steam_IsKnownInterface` | ❌ **not exported** | ❌ |
+| `Steam_NotifyMissingInterface` | ❌ **not exported** | ❌ |
 
 ```
-$ nm -arch x86_64 -gU steamclient.dylib | wc -l      # 38 exportaciones en total
+$ nm -arch x86_64 -gU steamclient.dylib | wc -l      # 38 exports in total
 $ nm -arch x86_64 -gU steamclient.dylib | grep -E "IsKnownInterface|NotifyMissingInterface"
-(vacío)
+(empty)
 $ strings -a -arch x86_64 steamclient.dylib | grep NotifyMissingInterface
-NotifyMissingInterface   # solo existe como nombre interno o de IPC, no como exportación
+NotifyMissingInterface   # only exists as an internal or IPC name, not as an export
 ```
 
-**Consecuencia:** sin cambios, lsteamclient en macOS falla en `steamclient_init` con
-`unable to load Steam_IsKnownInterface`. Arreglo previsto para el hito 5: hacer opcionales esos dos
-símbolos. Si falta `IsKnownInterface`, devolver `true` y dejar que `CreateInterface` decida. Si falta
-`NotifyMissingInterface`, no hacer nada. Es un parche pequeño y aislado.
+**Consequence:** unchanged, lsteamclient on macOS fails in `steamclient_init` with
+`unable to load Steam_IsKnownInterface`. Fix planned for milestone 5: make those two symbols optional. If
+`IsKnownInterface` is missing, return `true` and let `CreateInterface` decide. If `NotifyMissingInterface` is
+missing, do nothing. A small, isolated patch.
 
-## Versiones de interfaz
+## Interface versions
 
-Se han extraído las cadenas de versión del dylib (`strings`) y se han comparado con los ficheros
-`cppISteam*_<VERSION>.cpp` de Proton (212 versiones).
+The version strings were extracted from the dylib (`strings`) and compared with Proton's
+`cppISteam*_<VERSION>.cpp` files (212 versions).
 
-- **SteamClient:** el dylib contiene `SteamClient006` a `SteamClient023`. Proton envuelve 006–021 y 023
-  (la 022 no se publicó en el SDK). Cubre todo lo que pedirá un juego.
-- **En Proton pero no en el dylib:** solo `SteamNetworkingFakeUDPPort001`. Esta interfaz no se pide
-  por nombre a `CreateInterface`; la devuelve `ISteamNetworkingSockets::CreateFakeUDPPort`. No es un
-  problema. Otras versiones que parecían faltar (`SteamBilling002`, `STEAMCONTROLLER_INTERFACE_VERSION`,
-  `SteamNetworkingSocketsSerialized00x`…) sí están: se ha comprobado con búsqueda exacta.
-- **En el dylib pero no en Proton:** versiones internas o antiguas (`SteamClient022`,
-  `SteamUtils001/003`, `STEAMVIDEO_INTERFACE_V003–006`, `STEAMTIMELINE_INTERFACE_V002/3`…). Son
-  irrelevantes: lsteamclient solo traduce lo que piden los juegos.
+- **SteamClient:** the dylib contains `SteamClient006` to `SteamClient023`. Proton wraps 006–021 and 023 (022
+  was never published in the SDK). It covers everything a game will ask for.
+- **In Proton but not in the dylib:** only `SteamNetworkingFakeUDPPort001`. This interface is not requested by
+  name from `CreateInterface`; `ISteamNetworkingSockets::CreateFakeUDPPort` returns it. Not a problem. Other
+  versions that looked missing (`SteamBilling002`, `STEAMCONTROLLER_INTERFACE_VERSION`,
+  `SteamNetworkingSocketsSerialized00x`…) are present: checked with an exact search.
+- **In the dylib but not in Proton:** internal or old versions (`SteamClient022`, `SteamUtils001/003`,
+  `STEAMVIDEO_INTERFACE_V003–006`, `STEAMTIMELINE_INTERFACE_V002/3`…). Irrelevant: lsteamclient only
+  translates what games ask for.
 
-## ABI: ¿macOS x86_64 se comporta como Linux x86_64?
+## ABI: does macOS x86_64 behave like Linux x86_64?
 
 - `steamworks_sdk_165/steamclientpublic.h`: `#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__)`
-  define `VALVE_CALLBACK_PACK_SMALL`, es decir `#pragma pack(4)`. Windows usa `PACK_LARGE` (8).
-  **macOS usa el mismo empaquetado que Linux.**
-- macOS x86_64 y Linux x86_64 usan la misma convención SysV AMD64 y el mismo modelo LP64, así que el
-  layout de structs, `bool`, `wchar_t` (4 bytes) y el paso de argumentos coinciden.
-- `gen_wrapper.py` genera el ABI `u64` analizando los headers con libclang en el host Linux
-  (`-I/usr/include/x86_64-linux-gnu/`). El código generado puede reutilizarse tal cual. Bastaría con
-  regenerarlo en macOS si aparecieran diferencias, y no se espera ninguna.
-- macOS no tiene procesos de 32 bits. Los juegos de 32 bits pasan por WoW64 (structs `wow64_*`
-  hacia el lado unix de 64 bits), que Proton ya implementa.
+  defines `VALVE_CALLBACK_PACK_SMALL`, i.e. `#pragma pack(4)`. Windows uses `PACK_LARGE` (8).
+  **macOS uses the same packing as Linux.**
+- macOS x86_64 and Linux x86_64 use the same SysV AMD64 calling convention and the same LP64 model, so struct
+  layout, `bool`, `wchar_t` (4 bytes) and argument passing match.
+- `gen_wrapper.py` generates the `u64` ABI by parsing the headers with libclang on a Linux host
+  (`-I/usr/include/x86_64-linux-gnu/`). The generated code can be reused as is. Regenerating it on macOS would
+  only be needed if differences appeared, and none are expected.
+- macOS has no 32-bit processes. 32-bit games go through WoW64 (`wow64_*` structs towards the 64-bit unix
+  side), which Proton already implements.
 
-| Conclusión | Confianza |
+| Conclusion | Confidence |
 |---|---|
-| Las interfaces que necesitan los juegos están disponibles en el dylib. | Alta |
-| Faltan las exportaciones `Steam_IsKnownInterface` y `Steam_NotifyMissingInterface`; requiere parche en lsteamclient. | Alta |
-| El ABI u64 de macOS es idéntico al de Linux: los thunks generados sirven sin casos nuevos. | Alta (teórica); verificar con `static_assert` de `sizeof`/`offsetof` en el hito 5 |
-| La convención de llamada de los métodos virtuales (Itanium C++ ABI) es la misma en clang/macOS y en gcc/Linux. | Alta |
+| The interfaces games need are available in the dylib. | High |
+| The `Steam_IsKnownInterface` and `Steam_NotifyMissingInterface` exports are missing; lsteamclient needs a patch. | High (patched in milestone 5) |
+| The macOS u64 ABI is identical to Linux's: the generated thunks work with no new cases. | High (confirmed end to end in milestone 5) |
+| The calling convention of virtual methods (Itanium C++ ABI) is the same with clang/macOS and gcc/Linux. | High |

@@ -1,57 +1,66 @@
-# Parches sobre el Wine de Valve (rama `macos`)
+# Patches on top of Valve's Wine (`macos` branch)
 
-Base: `ValveSoftware/wine` en `dc26e61` (el Wine fijado por `proton-11.0-2`, Wine 11.0).
-Commits en `albvalort/wine@macos`: `20085ed`..`bac71f0` (un commit por arreglo, mensajes listos para upstream).
-Todos los parches son LGPL-2.1-or-later, como Wine. Criterio: cambios mínimos y aislados con
-`#ifdef`, para que el rebase con Proton sea trivial.
+Base: `ValveSoftware/wine` at `dc26e61` (the Wine pinned by `proton-11.0-2`, Wine 11.0).
+Commits in `albvalort/wine@macos`, one commit per fix, with upstream-ready messages.
+Every patch is LGPL-2.1-or-later, like Wine. Guideline: minimal, isolated changes behind `#ifdef`, so that
+rebasing on Proton stays trivial.
 
-## Build en macOS (hito 2)
+## Building on macOS (milestone 2)
 
-Wine upstream 11.0 compila en macOS. Los fallos vienen de código que Valve añadió y que asume Linux.
+Upstream Wine 11.0 builds on macOS. The failures come from code Valve added that assumes Linux.
 
-| # | Fichero | Problema | Arreglo | Origen |
+| # | File | Problem | Fix | Origin |
 |---|---|---|---|---|
-| 1 | `dlls/ntdll/unix/loader.c` | `#include <malloc.h>` y `mallopt(M_PERTURB)` (glibc) | `#ifdef __linux__` / `#ifdef M_PERTURB` | propio |
-| 2 | `dlls/ntdll/unix/signal_x86_64.c` | `set_thread_teb()` usa `arch_prctl(ARCH_SET_GS)` | En macOS, no-op. En código unix, `%gs` contiene el TSD de pthread y Wine lo cambia al TEB en las transiciones de syscall con `_thread_set_tsd_base`, como hace upstream (que no tiene `set_thread_teb`). | propio, siguiendo el diseño de upstream |
-| 3 | `dlls/ntdll/unix/sync.c`, `server/inproc_sync.c` | `ntsync_tmp.h` incluye `<linux/types.h>` | Incluir solo en `__linux__`. El código ya cae al camino sin ntsync cuando `NTSYNC_IOC_*` no está definido. | propio |
-| 4 | `server/fsync.c`, `dlls/ntdll/unix/fsync.c` | `syscall(__NR_futex…)` / `__NR_futex_waitv` (449) | Fuera de Linux, los helpers devuelven `ENOSYS`. **Importante:** el `#define __NR_futex_waitv 449` habría invocado la syscall 449 *de Darwin*. fsync ya se desactiva en tiempo de ejecución fuera de Linux (`fsync_check_support`). | propio |
-| 5 | `dlls/win32u/opengl.c` | El fshack (`framebuffer_surface_*`) se define dentro de `#ifdef SONAME_LIBEGL`, pero Valve lo usa fuera | Stubs en la rama sin EGL: nunca se necesita ni se crea, y `funcs` nunca coincide | propio |
-| 6 | `dlls/amd_ags_x64/unixlib.c` | `xf86drm.h`/`amdgpu.h` (libdrm, Linux) | Implementación solo con `HAVE_XF86DRM_H && HAVE_AMDGPU_DRM_H`; si no, `STATUS_NOT_SUPPORTED` | propio |
-| 8 | `dlls/ntdll/unix/signal_x86_64.c` (`dump_syscall_fault_return`) | `jmp %rcx` sin `*`: GNU as lo acepta con aviso, pero el ensamblador integrado de clang lo rechaza | `jmp *%rcx` (misma semántica; candidato a upstream de Proton) | propio |
-| 9 | `dlls/ntdll/unix/system.c` | `fill_cpu_override` (hack de Valve) usa `sysfs_parse_bitmap`/`fill_performance_core_info`, definidas solo en Linux | Stubs fuera de Linux: el override de CPU sigue funcionando, pero sin preferencia por los núcleos de rendimiento | propio |
-| 10 | `server/token.c` | El SID de usuario se deriva de `/etc/machine-id`, que no existe en macOS | `gethostuuid()` (commit `040be76`) | propio |
-| 7 | `dlls/winegstreamer/media-converter/media-converter.h` | `pthread_mutex_t` sin `#include <pthread.h>` (glibc lo arrastra indirectamente) | Añadir el include | propio |
+| 1 | `dlls/ntdll/unix/loader.c` | `#include <malloc.h>` and `mallopt(M_PERTURB)` (glibc) | `#ifdef __linux__` / `#ifdef M_PERTURB` | own |
+| 2 | `dlls/ntdll/unix/signal_x86_64.c` | `set_thread_teb()` uses `arch_prctl(ARCH_SET_GS)` | No-op on macOS. In unix code `%gs` holds the pthread TSD and Wine switches it to the TEB on syscall transitions with `_thread_set_tsd_base`, as upstream does (which has no `set_thread_teb`). Later replaced by CrossOver's TEB model (see D3DMetal). | own, following upstream's design |
+| 3 | `dlls/ntdll/unix/sync.c`, `server/inproc_sync.c` | `ntsync_tmp.h` includes `<linux/types.h>` | Only include it on `__linux__`. The code already falls back to the no-ntsync path when `NTSYNC_IOC_*` is not defined. | own |
+| 4 | `server/fsync.c`, `dlls/ntdll/unix/fsync.c` | `syscall(__NR_futex…)` / `__NR_futex_waitv` (449) | Outside Linux the helpers return `ENOSYS`. **Important:** `#define __NR_futex_waitv 449` would have invoked *Darwin's* syscall 449. Superseded on macOS by msync (below). | own |
+| 5 | `dlls/win32u/opengl.c` | The fshack (`framebuffer_surface_*`) is defined inside `#ifdef SONAME_LIBEGL`, but Valve uses it outside | Stubs in the no-EGL branch: it is never needed or created, and `funcs` never matches | own |
+| 6 | `dlls/amd_ags_x64/unixlib.c` | `xf86drm.h`/`amdgpu.h` (libdrm, Linux) | Implementation only with `HAVE_XF86DRM_H && HAVE_AMDGPU_DRM_H`; otherwise `STATUS_NOT_SUPPORTED` | own |
+| 7 | `dlls/winegstreamer/media-converter/media-converter.h` | `pthread_mutex_t` without `#include <pthread.h>` (glibc pulls it in indirectly) | Add the include | own |
+| 8 | `dlls/ntdll/unix/signal_x86_64.c` (`dump_syscall_fault_return`) | `jmp %rcx` without `*`: GNU as accepts it with a warning, clang's integrated assembler rejects it | `jmp *%rcx` (same semantics; upstream candidate for Proton) | own |
+| 9 | `dlls/ntdll/unix/system.c` | `fill_cpu_override` (Valve hack) uses `sysfs_parse_bitmap`/`fill_performance_core_info`, defined on Linux only | Stubs outside Linux: the CPU override still works, without the performance-core preference | own |
+| 10 | `server/token.c` | The user SID is derived from `/etc/machine-id`, which does not exist on macOS | `gethostuuid()` (commit `040be76`) | own |
 
-## Opciones de configure (no son parches)
+## Configure options (not patches)
 
-- `--disable-loader64`: `loader64/` es un añadido de Valve que copia `wine64` en `i386-unix` para la
-  disposición de Linux. En macOS no hace falta, y su preloader no enlaza `preloader_mac.o`.
-- Las herramientas nativas (arm64) se compilan con FreeType de Homebrew: `sfnt2fon` lo necesita para
-  generar las fuentes `.fon`.
+- `--disable-loader64`: `loader64/` is a Valve addition that copies `wine64` into `i386-unix` for the Linux
+  layout. It is not needed on macOS, and its preloader does not link `preloader_mac.o`.
+- The native (arm64) tools are built with Homebrew's FreeType: `sfnt2fon` needs it to generate the `.fon` fonts.
 
-## D3DMetal (hito 3)
+## msync (milestone 4)
 
-Portado desde el código LGPL de **CrossOver 26.0** (Wine 11.0, © CodeWeavers), con fusión a tres bandas
-(upstream 11.0 como base, Valve y CrossOver como ramas). Commits `e6dd133`, `0c7cc18` y `d04f1c7`.
+Commit `453726a`: fsync on top of XNU ulocks. Design and trade-offs in [ADR 0003](../adr/0003-msync.md).
 
-| Pieza | Por qué la necesita D3DMetal |
+## D3DMetal (milestone 3)
+
+Ported from the LGPL code of **CrossOver 26.0** (Wine 11.0, © CodeWeavers), with a three-way merge (upstream
+11.0 as base, Valve and CrossOver as branches). Commits `e6dd133`, `0c7cc18` and `d04f1c7`.
+
+| Piece | Why D3DMetal needs it |
 |---|---|
-| Modelo de TEB de CrossOver en macOS x86_64 (`signal_x86_64.c`, `thread.c`, `loader.c`) | Upstream/Valve cambian la base de `%gs` al pasar entre PE y unix. El código unix de `libd3dshared` llama a `pthread_self()` en hilos de Wine y se colgaba en `pthread_setname_np` con `%gs` apuntando al TEB. CrossOver deja `%gs` fijo en el TSD de pthread y copia ahí `Self`, el puntero TLS y el `Peb`. Como macOS usa el slot `0x60` para `localtime()`, este se redirige a un búfer TLS. |
-| Envoltorios ms_abi (`GPT_ABI_WRAPPER`) en `NtCreateThreadEx`, `NtClose` y las funciones de eventos y semáforos | `libd3dshared` llama a esas funciones de `ntdll` con la convención de llamada de Windows. Sin los envoltorios, los argumentos llegaban mal y un hilo se quedaba esperando una respuesta del servidor que nunca llegaba. |
-| Precarga de `libd3dshared` y notificación `pe_module_loaded` | Rango de direcciones para elegir el ABI y aviso de módulos PE nativos. |
-| `winemac.drv`: `d3dmetal.c`, `d3dmetal_objc.m` (tabla `macdrv_functions`, vistas Metal, callbacks del registro) | D3DMetal busca `macdrv_functions` con `dlsym`; sin ella falla con `Assertion failed: (drv)`. |
-| `win32u`: `client_surface_attach()` (propio) | En CrossOver, `client_surface_create` registra la surface en la ventana; en upstream no. Sin esto, la vista Metal se quedaba con el tamaño inicial (imagen en la esquina sobre fondo azul). |
-| `wow64cpu`: transiciones 32↔64 con `lretq` bajo Rosetta 2 (CrossOver, CW HACK 20760), commit `8152fab` | Con el modelo de TEB de CrossOver, sin esto las excepciones de código de 32 bits se despachaban con la pila de 64 y los juegos WoW64 (Downwell, Minimalism) se cerraban ("Exception frame is not in stack limits"). |
-| `ntdll`: `WINEDLLPATH_PREPEND` (propio) | Wine busca primero en su propio directorio y después en `WINEDLLPATH`. Así los módulos de GPTK se usan desde un directorio de enlaces del prefijo, sin tocar la instalación. |
-| `ntdll`: truncar los argumentos `BOOLEAN` de las syscalls (`SYSCALL_BOOLEAN_ARG`, propio), commit `77017fd` | El ABI x64 de Windows no define los bits altos de los argumentos estrechos y el código PE pasa `BOOLEAN` con un `movb`; Apple clang da por hecho que vienen extendidos y comprueba el registro de 32 bits. La basura convertía `FALSE` en `TRUE`: `GetLogicalDrives()` se quedaba en bucle porque `NtQueryDirectoryObject` veía `restart=TRUE` siempre (Lingo, Godot 3). Se aplica a las 42 syscalls de `ntdll` con parámetros `BOOLEAN`. |
-| `winemac.drv`: movimiento relativo para la entrada raw (propio), commit `fb90947` | Con el cursor dentro de la ventana, winemac enviaba posiciones absolutas en píxeles y el servidor las pasaba tal cual como `WM_INPUT` absoluto. Las cámaras en primera persona (Godot 3) esperan desplazamientos relativos, como da un ratón real en Windows, y no se movían. Ahora la posición absoluta va solo a los mensajes normales y la entrada raw recibe los `deltaX/deltaY` de macOS, como hace winex11 con XInput2. |
-| `opengl32`: `WINE_GL_VENDOR_REPORT_AMD` también sustituye "Apple" (propio, amplía el hack de Proton), commit `95dc1b3` | Godot 3 desactiva su pre-pase de profundidad si `GL_VENDOR` contiene "Apple" (`rendering/quality/depth_prepass/disable_for_vendors`), y los materiales con `depth_draw_mode` "opaque pre-pass" quedan invisibles. Reproducido también con Godot 3.5.2 nativo de macOS, sin Wine. Opt-in por juego (`compat/1814170.yaml`). |
-| `opengl32`: `WINE_GL_CAPTURE=<dir>` (propio, depuración), commit `95dc1b3` | Guarda el back buffer en PPM cada `WINE_GL_CAPTURE_INTERVAL` fotogramas antes de `SwapBuffers`. Permite ver lo que dibuja un juego sin permiso de grabación de pantalla. |
+| CrossOver's TEB model on macOS x86_64 (`signal_x86_64.c`, `thread.c`, `loader.c`) | Upstream/Valve switch the `%gs` base when going between PE and unix. The unix code in `libd3dshared` calls `pthread_self()` on Wine threads and hung in `pthread_setname_np` with `%gs` pointing at the TEB. CrossOver keeps `%gs` on the pthread TSD and mirrors `Self`, the TLS pointer and the `Peb` there. Since macOS uses slot `0x60` for `localtime()`, that slot is redirected to a TLS buffer. |
+| ms_abi wrappers (`GPT_ABI_WRAPPER`) on `NtCreateThreadEx`, `NtClose` and the event and semaphore functions | `libd3dshared` calls those `ntdll` functions with the Windows calling convention. Without the wrappers, the arguments arrived wrong and a thread waited forever for a server reply. |
+| `libd3dshared` preload and the `pe_module_loaded` notification | Address range used to choose the ABI, and notification of native PE modules. |
+| `winemac.drv`: `d3dmetal.c`, `d3dmetal_objc.m` (`macdrv_functions` table, Metal views, registry callbacks) | D3DMetal looks up `macdrv_functions` with `dlsym`; without it, it fails with `Assertion failed: (drv)`. |
+| `win32u`: `client_surface_attach()` (own) | In CrossOver, `client_surface_create` registers the surface with the window; upstream does not. Without it, the Metal view kept its initial size (image in the corner over a blue background). |
+| `wow64cpu`: 32↔64 transitions with `lretq` under Rosetta 2 (CrossOver, CW HACK 20760), commit `8152fab` | With CrossOver's TEB model, without this, exceptions in 32-bit code were dispatched with the 64-bit stack and WoW64 games (Downwell, Minimalism) quit ("Exception frame is not in stack limits"). |
+| `ntdll`: `WINEDLLPATH_PREPEND` (own) | Wine searches its own directory first and `WINEDLLPATH` afterwards. This way GPTK's modules are used from a directory of symlinks in the prefix, without touching the installation. |
 
-## Pendiente de revisar
+## Games (2026-10-12)
 
-- `err:virtual:try_map_free_area mmap() error Cannot allocate memory` cerca de `0x7fffffff0000` en cada
-  arranque (Rosetta). Parece inofensivo (Wine reintenta en otra zona); hay que confirmarlo.
+| Patch | Why |
+|---|---|
+| `ntdll`: truncate `BOOLEAN` syscall arguments (`SYSCALL_BOOLEAN_ARG`, own), commit `77017fd` | The Windows x64 ABI leaves the upper bits of narrow arguments undefined and PE code passes `BOOLEAN` with a `movb`; Apple clang assumes they are extended and tests the 32-bit register. The garbage turned `FALSE` into `TRUE`: `GetLogicalDrives()` looped forever because `NtQueryDirectoryObject` always saw `restart=TRUE` (Lingo, Godot 3). Applied to the 42 `ntdll` syscalls with `BOOLEAN` parameters. |
+| `winemac.drv`: relative motion for raw input (own), commit `fb90947` | With the cursor inside the window, winemac sent absolute pixel positions and the server forwarded them unchanged as absolute `WM_INPUT`. First-person cameras (Godot 3) expect relative motion, as a real mouse provides on Windows, and did not move. The absolute position now only goes to regular mouse messages and raw input gets macOS's `deltaX/deltaY`, as winex11 does with XInput2. |
+| `winemac.drv`: relative mouse mode for hidden, clipped cursors (own), commits `d80520e`, `ff4b41a` | Godot 3 recenters the cursor after every `WM_INPUT`. Warping the macOS cursor that often makes the next events carry the warp back as motion and drops others: the camera stuttered and snapped back. While the cursor is hidden, clipped and the app is active, winemac detaches the cursor from the mouse (`CGAssociateMouseAndMouseCursorPosition`), makes `SetCursorPos` a no-op for the host cursor and reports only relative motion, as native macOS games do. |
+| `opengl32`: `WINE_GL_VENDOR_REPORT_AMD` also replaces "Apple" (own, extends Proton's hack), commit `95dc1b3` | Godot 3 disables its depth prepass when `GL_VENDOR` contains "Apple" (`rendering/quality/depth_prepass/disable_for_vendors`), and materials with the "opaque pre-pass" depth draw mode become invisible. Also reproduced with native Godot 3.5.2 on macOS, without Wine. Opt-in per game (`compat/1814170.yaml`). |
+| `opengl32`: `WINE_GL_CAPTURE=<dir>` (own, debugging), commit `95dc1b3` | Saves the back buffer as a PPM every `WINE_GL_CAPTURE_INTERVAL` frames before `SwapBuffers`, to see what a game draws without screen recording permission. |
 
-- `winemac.drv`: compararlo con upstream 11.0 en cuanto arranque `winecfg`.
-- fsync no existe en macOS. Su sustituto es msync (hito 4).
+## To review
+
+- `err:virtual:try_map_free_area mmap() error Cannot allocate memory` near `0x7fffffff0000` on every start
+  (Rosetta). It looks harmless (Wine retries elsewhere); to be confirmed.
+- Proton's `fs_hack_setup_gamma_shader` fails to compile in legacy (2.1) OpenGL contexts on macOS. The
+  fullscreen hack is not used on macOS (no EGL), so the gamma shader is useless there.
+- `winemac.drv`: compare with upstream 11.0.

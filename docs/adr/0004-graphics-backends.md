@@ -1,37 +1,40 @@
-# ADR 0004: Backends gráficos en macOS
+# ADR 0004: Graphics backends on macOS
 
-- Estado: aceptada (los tres backends funcionan; D3DMetal validado con GPTK 4.0 beta 2)
-- Fecha: 2026-10-11
+- Status: accepted (all three backends work; D3DMetal validated with GPTK 4.0 beta 2)
+- Date: 2026-10-11
 
-## Contexto
+## Context
 
-En Linux, Proton traduce D3D9/10/11 con DXVK y D3D12 con vkd3d-proton, ambos sobre Vulkan. En macOS hay
-cuatro opciones:
+On Linux, Proton translates D3D9/10/11 with DXVK and D3D12 with vkd3d-proton, both on Vulkan. On macOS there
+are four options:
 
-| Opción | API cubiertas | Requisito | Problema |
+| Option | APIs covered | Requirement | Problem |
 |---|---|---|---|
-| wined3d (de Wine) | D3D1–11, D3D12 parcial con vkd3d | OpenGL 4.1 (o Vulkan) | Lento y con poca cobertura de D3D11 sobre GL 4.1 |
-| DXVK sobre MoltenVK | D3D10/11 | MoltenVK (universal, Apache-2.0) | DXVK 2.x exige extensiones que MoltenVK no tiene; hay que usar el fork macOS de Gcenx (DXVK 1.10.3, zlib), igual que CrossOver |
-| DXVK 2.x / vkd3d-proton sobre **KosmicKrisp** | D3D9–12 | KosmicKrisp (Mesa sobre Metal 4, conforme con Vulkan 1.4 y listo para producción según [LunarG, oct. 2026](https://www.lunarg.com/the-state-of-vulkan-on-apple-oct-2026/)) | **Solo arm64**: no se puede cargar en un proceso x86_64 bajo Rosetta, como es nuestro Wine |
-| D3DMetal (GPTK de Apple) | D3D11/12 | Que el usuario instale GPTK | No se puede redistribuir. La licencia limita su uso a evaluar ports. El ABI de sus módulos unix debe coincidir con nuestra versión de Wine |
+| wined3d (Wine's) | D3D1–11, partial D3D12 with vkd3d | OpenGL 4.1 (or Vulkan) | Slow, and poor D3D11 coverage on GL 4.1 |
+| DXVK on MoltenVK | D3D10/11 | MoltenVK (universal, Apache-2.0) | DXVK 2.x needs extensions MoltenVK lacks; Gcenx's macOS fork (DXVK 1.10.3, zlib) must be used, as CrossOver does |
+| DXVK 2.x / vkd3d-proton on **KosmicKrisp** | D3D9–12 | KosmicKrisp (Mesa on Metal 4, Vulkan 1.4 conformant and production ready according to [LunarG, Oct 2026](https://www.lunarg.com/the-state-of-vulkan-on-apple-oct-2026/)) | **arm64 only**: it cannot be loaded into an x86_64 process under Rosetta, which our Wine is |
+| D3DMetal (Apple's GPTK) | D3D11/12 | The user installs GPTK | Cannot be redistributed. The license limits its use to evaluating ports. The ABI of its unix modules must match our Wine version |
 
-## Decisión
+## Decision
 
-- `PROTON_MAC_GFX=dxvk|d3dmetal|wined3d` en el script `proton`. Por defecto: **dxvk** si está empaquetado; si
-  no, wined3d. `d3dmetal` es siempre opt-in y solo funciona si se detecta GPTK (`PROTON_MAC_GPTK`,
-  `~/Library/Application Support/proton-macos/gptk/*/redist/lib` o el entorno de evaluación montado). Sus
-  módulos se enlazan en `<compatdata>/gptk/` y se buscan antes que los de Wine (`WINEDLLPATH_PREPEND`). No se
-  copia nada de Apple. Integración en Wine portada de CrossOver: ver `docs/patches/wine.md`. Solo x86_64 (GPTK
-  no trae módulos de 32 bits).
-- DXVK-macOS 1.10.3 (Gcenx, zlib) aporta `d3d11`/`d3d10core`. `dxgi`, `d3d9` y `d3d12` son los de Wine, este
-  último con vkd3d sobre winevulkan → MoltenVK.
-- Wine se compila con Vulkan contra MoltenVK 1.4.2 (binario oficial universal, que se empaqueta junto a Wine).
-- **KosmicKrisp:** no se integra por ahora (no hay selector implementado), porque no puede funcionar con Wine
-  x86_64. Haría falta el lado unix de Wine en arm64, con los PE x86 traducidos por otro
-  mecanismo, o renderizado fuera de proceso. Se revisará si LunarG publica un slice x86_64.
+- `PROTON_MAC_GFX=dxvk|d3dmetal|wined3d` in the `proton` script. Default: **dxvk** if it is packaged;
+  otherwise wined3d. `d3dmetal` is always opt-in and only works if GPTK is found (`PROTON_MAC_GPTK`,
+  `~/Library/Application Support/proton-macos/gptk/*/redist/lib` or the mounted evaluation environment). Its
+  modules are symlinked into `<compatdata>/gptk/` and searched before Wine's (`WINEDLLPATH_PREPEND`). Nothing
+  from Apple is copied. Wine integration ported from CrossOver: see `docs/patches/wine.md`. x86_64 only (GPTK
+  ships no 32-bit modules).
+- DXVK-macOS 1.10.3 (Gcenx, zlib) provides `d3d11`/`d3d10core`. `dxgi`, `d3d9` and `d3d12` are Wine's, the
+  latter with vkd3d on winevulkan → MoltenVK.
+- Wine is built with Vulkan against MoltenVK 1.4.2 (official universal binary, packaged with Wine).
+- **KosmicKrisp:** not integrated for now (no selector implemented), because it cannot work with x86_64 Wine.
+  It would need Wine's unix side in arm64, with x86 PE code translated by another mechanism, or out-of-process
+  rendering. To be revisited if LunarG publishes an x86_64 slice.
+- OpenGL games go through Apple's OpenGL 4.1 (Metal-backed). `WINE_GL_VENDOR_REPORT_AMD=1` reports another
+  vendor for engines that switch features off on "Apple" GPUs (Godot 3 disables its depth prepass and
+  opaque-prepass materials disappear).
 
-## Consecuencias
+## Consequences
 
-- DX12 sin GPTK depende de vkd3d (no vkd3d-proton) sobre MoltenVK: compatibilidad limitada.
-- Para DX12 serio, D3DMetal es hoy la única vía, y queda en manos del usuario y de la licencia de Apple.
-- Benchmarks por backend en `docs/bench/` (hito 3).
+- DX12 without GPTK depends on vkd3d (not vkd3d-proton) on MoltenVK: limited compatibility.
+- For serious DX12, D3DMetal is today the only route, and it is up to the user and Apple's license.
+- Per-backend benchmarks in `docs/bench/` (milestone 3).

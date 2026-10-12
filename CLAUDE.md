@@ -1,82 +1,88 @@
 # Proton-macOS
 
-Port de Proton (Wine + lsteamclient + script `proton`) a macOS Apple Silicon para ejecutar juegos
-de Windows de Steam. Nombre provisional; no implica respaldo de Valve.
+Port of Proton (Wine + lsteamclient + the `proton` script) to Apple Silicon macOS, to run Windows
+games from Steam. Working name; it does not imply endorsement by Valve.
 
-## Arquitectura
+## Architecture
 
 ```
-Juego .exe (Windows x86_64)
-  └─ Wine de Valve (fork, rama macos) — x86_64 bajo Rosetta 2, winemac.drv, WoW64 nuevo
-       ├─ Gráficos: D3DMetal (del GPTK del usuario) | DXVK→MoltenVK | wined3d   (PROTON_MAC_GFX)
-       ├─ Sync: msync (semáforos Mach)                                           (PROTON_NO_MSYNC=1)
-       └─ lsteamclient (lado PE + lado unix) → steamclient.dylib del cliente Steam en ejecución
-  └─ script `proton` (Python, fork) — mismo contrato que en Linux
-pmac (launcher/, Rust): login QR, biblioteca, depots de Windows, accesos en Steam
-steam-hook/ (experimental, opt-in): integración en copia re-firmada de Steam.app
+Game .exe (Windows x86_64)
+  └─ Valve's Wine (fork, macos branch) — x86_64 under Rosetta 2, winemac.drv, new WoW64
+       ├─ Graphics: D3DMetal (from the user's GPTK) | DXVK→MoltenVK | wined3d   (PROTON_MAC_GFX)
+       ├─ Sync: msync (XNU ulocks)                                               (PROTON_NO_MSYNC=1)
+       └─ lsteamclient (PE side + unix side) → steamclient.dylib of the running Steam client
+  └─ `proton` script (Python, fork) — same contract as on Linux
+pmac (launcher/, Rust): QR login, library, Windows depots, Steam shortcuts
+steam-hook/ (experimental, opt-in): Steam Play inside the Steam client
 ```
 
-## Estructura del repo
+## Repository layout
 
-- `scripts/` — `doctor.sh`, `build-macos.sh`, `bench.sh`
-- `external/proton`, `external/wine` — submódulos (forks, rama `macos`)
-- `launcher/` — `pmac` en Rust
+- `scripts/` — `doctor.sh`, `build-deps.sh`, `build-macos.sh`, `build-proton-modules.sh`, `package.sh`,
+  `steamcmd.sh`, `bench.sh`
+- `external/proton`, `external/wine` — submodules (forks, `macos` branch)
+- `launcher/` — `pmac`, in Rust
 - `steam-hook/` — experimental
-- `compat/<appid>.yaml` — base de compatibilidad
-- `docs/research/` — hallazgos de ingeniería inversa (con evidencia y nivel de confianza)
-- `docs/patches/` — un fichero por componente: cada parche, por qué y de dónde viene
-- `docs/adr/` — decisiones de arquitectura (`NNNN-titulo.md`)
-- `docs/bench/` — resultados de rendimiento
-- `docs/STATUS.md` — estado por hito
+- `compat/<appid>.yaml` — compatibility database
+- `tools/` — debugging tools (see `tools/README.md`)
+- `docs/research/` — reverse-engineering findings (with evidence and confidence level)
+- `docs/patches/` — one file per component: every patch, why, and where it comes from
+- `docs/adr/` — architecture decisions (`NNNN-title.md`)
+- `docs/bench/` — performance results
+- `docs/STATUS.md` — status per milestone
 
-## Hechos del entorno (verificados)
+## Environment facts (verified)
 
-- macOS 27 en arm64. Wine corre como x86_64 bajo Rosetta 2.
-- **`/Applications/Steam.app` es solo el bootstrapper.** El cliente real está en
+- macOS 27 on arm64. Wine runs as x86_64 under Rosetta 2.
+- **`/Applications/Steam.app` is only the bootstrapper.** The real client lives in
   `~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/`
-  (`steamclient.dylib`, `steam_osx`, etc.). Usar siempre esta ruta.
-- `steamclient.dylib` es universal (`x86_64 arm64`): se puede cargar en proceso desde Wine x86_64.
-- Toolchains en espacio de usuario: `~/.local/opt/llvm-mingw` (PE), `~/.local/opt/ghidra_*` (análisis).
-- Homebrew ya no admite x86_64: las dependencias unix x86_64 de Wine se compilan con `scripts/build-deps.sh`
-  en `~/.local/opt/proton-macos-deps/x86_64`. Nunca usar Homebrew de `/opt/homebrew` (arm64) para enlazar Wine.
-- **Las Command Line Tools de macOS 27 son solo arm64** (clang, make, ld y también `libxcrun`): nada de
-  `arch -x86_64` para compilar. Se hace compilación cruzada desde arm64 (`clang -arch x86_64`,
-  `--build=aarch64-apple-darwin --host=x86_64-apple-darwin`). Wine usa sus herramientas nativas arm64 vía
-  `--with-wine-tools` (ver `scripts/build-macos.sh`).
-- `steam_osx` no tiene hardened runtime; `/Applications/Steam.app` sí. Steam Play está compilado en el
-  cliente de Mac y lo desactiva un único chequeo (`docs/research/03-platform-and-launch.md`).
-- steamcmd en `~/.local/opt/steamcmd`. **Usarlo siempre con `scripts/steamcmd.sh`**, que le da un HOME propio
-  (`~/.local/share/proton-macos/steamcmd-home`). Si comparte `~/Library/Application Support/Steam` con el
-  Steam gráfico, cada cliente sobrescribe el token de sesión del otro (`config.vdf` → `ConnectCache`).
-  No reiniciar el Steam gráfico para hacer pruebas: usar steamcmd.
-- REA (MCP + CLI `npx rea-agents`) para ingeniería inversa de binarios.
+  (`steamclient.dylib`, `steam_osx`, etc.). Always use that path.
+- `steamclient.dylib` is universal (`x86_64 arm64`): it can be loaded in-process from x86_64 Wine.
+- User-space toolchains: `~/.local/opt/llvm-mingw` (PE), `~/.local/opt/ghidra_*` (analysis).
+- Homebrew no longer supports x86_64: Wine's x86_64 unix dependencies are built with
+  `scripts/build-deps.sh` into `~/.local/opt/proton-macos-deps/x86_64`. Never link Wine against the
+  arm64 Homebrew in `/opt/homebrew`.
+- **The macOS 27 Command Line Tools are arm64 only** (clang, make, ld and also `libxcrun`): no
+  `arch -x86_64` for building. Everything is cross-compiled from arm64 (`clang -arch x86_64`,
+  `--build=aarch64-apple-darwin --host=x86_64-apple-darwin`). Wine uses its native arm64 tools through
+  `--with-wine-tools` (see `scripts/build-macos.sh`).
+- `steam_osx` has no hardened runtime; `/Applications/Steam.app` does. Steam Play is compiled into the
+  Mac client and a single check disables it (`docs/research/03-platform-and-launch.md`).
+- SIP strips `DYLD_*` variables when executing protected system binaries (`/usr/bin/nohup`, `/bin/sh`,
+  …): never launch something that needs `DYLD_INSERT_LIBRARIES` through them.
+- steamcmd lives in `~/.local/opt/steamcmd`. **Always use it through `scripts/steamcmd.sh`**, which gives
+  it its own HOME (`~/.local/share/proton-macos/steamcmd-home`). If it shares
+  `~/Library/Application Support/Steam` with the Steam GUI, each client overwrites the other's session
+  token (`config.vdf` → `ConnectCache`). Do not restart the Steam GUI for tests: use steamcmd.
+- REA (MCP + `npx rea-agents` CLI) for binary reverse engineering.
 
-## Reglas
+## Rules
 
-1. **Nunca redistribuir nada de Apple** (GPTK, D3DMetal, MetalFX). Solo detectar la instalación del
-   usuario y referenciarla. Ni en el repo, ni en paquetes, ni en CI. Ojo: la licencia de GPTK limita
-   su uso a evaluación de ports; documentarlo y no hacer D3DMetal obligatorio.
-2. **Nunca modificar el Steam.app original ni el Steam.AppBundle instalado.** Solo análisis estático
-   y de solo lectura. Cualquier parche va sobre una copia re-firmada (solo hito 9). Usar cuenta
-   secundaria de Steam para pruebas.
-3. **Cambios sobre Proton/Wine aislados y documentados** en `docs/patches/` para que el rebase con
-   upstream sea trivial. Preferir ficheros nuevos y ramas `if darwin` a reescrituras.
-4. **Código de terceros**: solo con licencia compatible (LGPL para Wine, BSD-3 nuestro). Anotar
-   el origen en el parche y en `NOTICE`. No copiar a ciegas de CrossOver/Gcenx: entender y citar.
-5. **Hallazgos de investigación** siempre con evidencia reproducible (comando + salida) y nivel de
-   confianza (alta/media/baja).
-6. **Mismo contrato que Proton en Linux**: `proton run`, `proton waitforexitandrun`, variables
-   `PROTON_*`, `toolmanifest.vdf`, `user_settings.py`.
-7. Antes de pasar de hito, cumplir su criterio de "hecho" y actualizar `docs/STATUS.md`.
-8. Nada de manejar contraseñas de Steam: login solo por QR.
+1. **Never redistribute anything from Apple** (GPTK, D3DMetal, MetalFX). Only detect the user's
+   installation and reference it. Not in the repo, not in packages, not in CI. Note: the GPTK license
+   limits its use to evaluating ports; document it and never make D3DMetal mandatory.
+2. **Never modify the original Steam.app or the installed Steam.AppBundle.** Static, read-only
+   analysis only. Any patch goes on a re-signed copy (milestone 9 only). Use a secondary Steam account
+   for tests.
+3. **Proton/Wine changes isolated and documented** in `docs/patches/` so rebasing on upstream stays
+   trivial. Prefer new files and `if darwin` branches over rewrites.
+4. **Third-party code**: only with a compatible license (LGPL for Wine, BSD-3 for ours). Record the
+   origin in the patch and in `NOTICE`. Do not copy blindly from CrossOver/Gcenx: understand and cite.
+5. **Research findings** always come with reproducible evidence (command + output) and a confidence
+   level (high/medium/low).
+6. **Same contract as Proton on Linux**: `proton run`, `proton waitforexitandrun`, `PROTON_*` variables,
+   `toolmanifest.vdf`, `user_settings.py`.
+7. Before moving to the next milestone, meet its definition of done and update `docs/STATUS.md`.
+8. Never handle Steam passwords: QR login only.
 
-## Idioma
+## Language
 
-Docs internas y commits: español. README, LICENSE, comentarios de código y mensajes de cara a
-upstream: inglés.
+Everything is in English: docs, commit messages, code comments and upstream-facing messages.
 
-## Comandos
+## Commands
 
-- `scripts/doctor.sh [--ci]` — comprueba el entorno (código ≠0 si falta algo crítico)
-- `scripts/build-deps.sh` — dependencias unix x86_64 de Wine (freetype…) en `~/.local/opt/proton-macos-deps/x86_64`
-- `scripts/build-macos.sh [prepare|tools|wine|all]` — Wine en `build/`, instalado en `dist/wine`
+- `scripts/doctor.sh [--ci]` — checks the environment (non-zero exit if something critical is missing)
+- `scripts/build-deps.sh` — Wine's x86_64 unix dependencies (freetype…) into `~/.local/opt/proton-macos-deps/x86_64`
+- `scripts/build-macos.sh [prepare|tools|wine|rebuild|all]` — Wine in `build/`, installed into `dist/wine`
+- `scripts/build-proton-modules.sh` — lsteamclient and steam.exe
+- `scripts/package.sh [--install]` — Steam compatibility tool in `dist/proton-macos` (and `pmac`)

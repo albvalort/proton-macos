@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
 
 #define DYLD_INTERPOSE(_replacement, _replacee) \
     __attribute__((used)) static struct { const void *replacement; const void *replacee; } _interpose_##_replacee \
@@ -58,44 +57,3 @@ static CGLError my_CGLFlushDrawable(CGLContextObj ctx)
     return CGLFlushDrawable(ctx);
 }
 DYLD_INTERPOSE(my_CGLFlushDrawable, CGLFlushDrawable)
-
-/* GLCAPTURE_INVARIANT=1: declare gl_Position invariant in every vertex shader. */
-static void my_glShaderSource(GLuint shader, GLsizei count, const GLchar *const *string, const GLint *length)
-{
-    GLint type = 0;
-    size_t total = 0, len = 0;
-    char *src, *out, *nl;
-    GLsizei i;
-
-    glGetShaderiv(shader, GL_SHADER_TYPE, &type);
-    if (!getenv("GLCAPTURE_INVARIANT") || type != GL_VERTEX_SHADER)
-    {
-        glShaderSource(shader, count, string, length);
-        return;
-    }
-    for (i = 0; i < count; i++) total += length && length[i] >= 0 ? (size_t)length[i] : strlen(string[i]);
-    src = malloc(total + 1);
-    for (i = 0; i < count; i++)
-    {
-        size_t l = length && length[i] >= 0 ? (size_t)length[i] : strlen(string[i]);
-        memcpy(src + len, string[i], l);
-        len += l;
-    }
-    src[len] = 0;
-    out = malloc(len + 64);
-    if (!strncmp(src, "#version", 8) && (nl = strchr(src, '\n')))
-    {
-        size_t head = nl + 1 - src;
-        memcpy(out, src, head);
-        strcpy(out + head, "invariant gl_Position;\n");
-        strcat(out, nl + 1);
-    }
-    else strcpy(out, src);
-    {
-        const GLchar *one = out;
-        glShaderSource(shader, 1, &one, NULL);
-    }
-    free(out);
-    free(src);
-}
-DYLD_INTERPOSE(my_glShaderSource, glShaderSource)

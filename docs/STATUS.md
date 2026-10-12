@@ -1,20 +1,21 @@
-# Estado
+# Status
 
-| Hito | Descripción | Estado |
+| Milestone | Description | Status |
 |---|---|---|
-| 0 | Entorno e investigación de bloqueos | ✅ Hecho. `doctor.sh` sin fallos críticos; (a), (b) y (c) respondidas con evidencia ([findings](research/00-findings.md)) |
-| 1 | Esqueleto del repo, forks y CI | ✅ Hecho. Forks `albvalort/Proton` y `albvalort/wine` (rama `macos`), clon con submódulos verificado, CI en verde |
-| 2 | Wine de Valve compilando en macOS | ✅ Compila (cruzado arm64→x86_64) con 9 parches ([patches/wine.md](patches/wine.md)). `wine cmd` funciona; `notepad` y `winecfg` abren ventanas nativas (pendiente tu validación visual) |
-| 3 | Gráficos: D3DMetal con fallback a DXVK | ✅ `PROTON_MAC_GFX` = dxvk (por defecto, DXVK-macOS sobre MoltenVK), d3dmetal (GPTK del usuario, integración portada de CrossOver) o wined3d. Downwell (DX11) y ANIMAL WELL (DX12, con vkd3d y con D3DMetal) a 60 fps ([bench](bench/graphics.md)). KosmicKrisp descartado por ahora: solo arm64 ([ADR 0004](adr/0004-graphics-backends.md)) |
-| 4 | msync | 🟡 Implementado como fsync sobre ulocks de XNU ([ADR 0003](adr/0003-msync.md)): ping-pong 3,9×, mutex 5,7×, entre procesos 3,4× ([bench](bench/msync.md)). Activado por defecto (`PROTON_NO_MSYNC=1` lo desactiva). Pendiente: sesión de 30 min con un juego |
-| 5 | Puente lsteamclient → steamclient.dylib | ✅ Hecho. `tests/steam-bridge/steamtest.exe` (Wine en macOS) conecta con el Steam en marcha, lee usuario y AppID y desbloquea `ACH_WIN_ONE_GAME` de Spacewar; el perfil público muestra "1 of 5". Parches en [patches/proton.md](patches/proton.md) |
-| 6 | Script `proton` para macOS | ✅ Hecho. `proton run`/`waitforexitandrun` funcionan como en Linux. Steam (steamcmd con Steam Play activado) instala Minimalism (depot de Windows) y lo lanza a través de `proton_macos`; el juego (PE32, D3D9→wined3d→OpenGL) corre a pantalla completa. `steamtest.exe` pasa por `proton run` y habla con Steam |
-| 7 | Launcher y descarga de depots | ✅ `pmac` (Rust): `list` (biblioteca desde las cachés de Steam, sin login), `info`, `install` (DepotDownloader, login QR), `run` (contrato de Steam Play + `compat/<appid>.yaml`), `shortcut` (shortcuts.vdf + carátulas oficiales). **Downwell arranca con "Jugar" desde la biblioteca de Steam en Mac** (validado por el usuario). [ADR 0005](adr/0005-launcher.md). Pendiente: probar `pmac login` (QR) + `install` |
-| 8 | Rendimiento | ⏳ |
-| 9 | Integración en el cliente de Steam | 🔬 Validada con steamcmd ([ADR 0002](adr/0002-steam-play-integration.md)) |
-| 10 | Publicar | ⏳ |
+| 0 | Environment and blocker research | ✅ Done. `doctor.sh` with no critical failures; (a), (b) and (c) answered with evidence ([findings](research/00-findings.md)) |
+| 1 | Repository skeleton, forks and CI | ✅ Done. Forks `albvalort/Proton` and `albvalort/wine` (`macos` branch), clone with submodules verified, CI green |
+| 2 | Valve's Wine building on macOS | ✅ Builds (cross-compiled arm64→x86_64) with the patches in [patches/wine.md](patches/wine.md). `wine cmd` works; `notepad` and `winecfg` open native windows |
+| 3 | Graphics: D3DMetal with DXVK fallback | ✅ `PROTON_MAC_GFX` = dxvk (default, DXVK-macOS on MoltenVK), d3dmetal (the user's GPTK, integration ported from CrossOver) or wined3d. Downwell (DX11) and ANIMAL WELL (DX12, with vkd3d and with D3DMetal) at 60 fps ([bench](bench/graphics.md)). KosmicKrisp ruled out for now: arm64 only ([ADR 0004](adr/0004-graphics-backends.md)) |
+| 4 | msync | 🟡 Implemented as fsync on top of XNU ulocks ([ADR 0003](adr/0003-msync.md)): ping-pong 3.9×, mutex 5.7×, cross-process 3.4× ([bench](bench/msync.md)). Enabled by default (`PROTON_NO_MSYNC=1` disables it). Pending: a 30-minute game session |
+| 5 | lsteamclient → steamclient.dylib bridge | ✅ Done. `tests/steam-bridge/steamtest.exe` (Wine on macOS) connects to the running Steam, reads the user and AppID and unlocks Spacewar's `ACH_WIN_ONE_GAME`; the public profile shows "1 of 5". Patches in [patches/proton.md](patches/proton.md) |
+| 6 | `proton` script for macOS | ✅ Done. `proton run`/`waitforexitandrun` behave as on Linux. Steam (steamcmd with Steam Play enabled) installs Minimalism (Windows depot) and launches it through `proton_macos`; the game (PE32, D3D9→wined3d→OpenGL) runs fullscreen. `steamtest.exe` goes through `proton run` and talks to Steam |
+| 7 | Launcher and depot downloads | ✅ `pmac` (Rust): `login` (QR), `list` (library from Steam's caches, no login), `info`, `install` (DepotDownloader), `run` (Steam Play contract + `compat/<appid>.yaml`), `shortcut` (shortcuts.vdf + official artwork). Downwell launches with "Play" from the Steam library on Mac; Lingo was installed with `pmac login` + `pmac install` and is playable. [ADR 0005](adr/0005-launcher.md) |
+| 8 | Performance | ⏳ |
+| 9 | Integration into the Steam client | 🔬 Validated with steamcmd ([ADR 0002](adr/0002-steam-play-integration.md)). The Steam GUI is arm64 and loads the library exporting `V_strnicmp` with `dlopen`, so the dyld-interposing shim used with steamcmd does not apply there; not working yet |
+| 10 | Publish | ⏳ |
 
-## Entorno de pruebas
+## Test environment
 
-- M2, macOS 27.0.1, Steam para Mac 6.1 (build 1788652215), steamcmd 1788292693.
-- Juego de prueba solo de Windows: Minimalism (585690), 9 MB, PE32. Candidato DX11 con logros: ANIMAL WELL (813230).
+- M2, macOS 27.0.1, Steam for Mac 6.1 (build 1788652215), steamcmd 1788292693.
+- Windows-only test game: Minimalism (585690), 9 MB, PE32. DX11 candidate with achievements: ANIMAL WELL (813230).
+  OpenGL (Godot 3) with first-person mouse look: Lingo (1814170).

@@ -1,54 +1,52 @@
-# ADR 0003: msync como backend de fsync sobre ulocks de XNU
+# ADR 0003: msync as an fsync backend on top of XNU ulocks
 
-- Estado: aceptada
-- Fecha: 2026-10-11
+- Status: accepted
+- Date: 2026-10-11
 
-## Contexto
+## Context
 
-El plan (hito 4) pedía portar msync de [marzent/wine-msync](https://github.com/marzent/wine-msync) (LGPL-2.1):
-semáforos Mach y un servidor de mensajes Mach dentro del wineserver. Ese parche (2024) asume el modelo antiguo
-del servidor de Wine, en el que cada objeto implementa `signaled` y expone su índice de sincronización. Al
-aplicarlo sobre el Wine 11 de Valve fallan 45 fragmentos en 22 ficheros.
+The plan (milestone 4) asked to port msync from [marzent/wine-msync](https://github.com/marzent/wine-msync)
+(LGPL-2.1): Mach semaphores and a Mach message server inside wineserver. That patch (2024) assumes Wine's
+old server model, where every object implements `signaled` and exposes its sync index. Applied on top of
+Valve's Wine 11, 45 hunks fail in 22 files.
 
-Wine 11 reorganizó la sincronización: los objetos delegan en objetos de sincronización (`get_sync`), y Valve
-implementa **fsync como backend de la capa `inproc_sync`**, la misma que usa ntsync. fsync guarda todo el
-estado en memoria compartida y solo necesita tres operaciones futex:
+Wine 11 reorganised synchronisation: objects delegate to sync objects (`get_sync`), and Valve implements
+**fsync as a backend of the `inproc_sync` layer**, the same one ntsync uses. fsync keeps all state in
+shared memory and only needs three futex operations:
 
-- despertar a todos los que esperan en una palabra;
-- esperar en una palabra;
-- esperar en varias a la vez (`futex_waitv`).
+- wake every waiter on a word;
+- wait on a word;
+- wait on several words at once (`futex_waitv`).
 
-## Decisión
+## Decision
 
-Implementar msync como **fsync con los futex emulados** sobre `__ulock_wait2`/`__ulock_wake` (XNU, macOS 11+,
-la misma API que usan libc y libdispatch), en modo `UL_COMPARE_AND_WAIT_SHARED`, que funciona entre procesos.
+Implement msync as **fsync with emulated futexes** on top of `__ulock_wait2`/`__ulock_wake` (XNU, macOS 11+,
+the same API libc and libdispatch use), in `UL_COMPARE_AND_WAIT_SHARED` mode, which works across processes.
 
-- Espera en una palabra → `__ulock_wait2`.
-- Despertar → `__ulock_wake(ULF_WAKE_ALL)`, más un contador de época compartido.
-- Espera en varias palabras → registro en un bloque de control (índice 0 de la memoria compartida, que fsync
-  nunca asigna), lectura de la época, comprobación de las palabras y espera sobre la época. Con atomics
-  secuencialmente consistentes no se pierde ningún despertar. Los despertares espurios no importan, porque
-  fsync siempre vuelve a comprobar los objetos.
-- Espera activa acotada antes de dormir (`WINE_MSYNC_SPIN`, 4000 iteraciones por defecto): despertar un hilo
-  bloqueado en el kernel cuesta varios µs en Apple Silicon bajo Rosetta.
-- Plazo ya vencido → comprobar y devolver sin entrar en el kernel (un ulock con timeout mínimo sigue armando
-  un temporizador agrupado de decenas de µs).
-- Memoria compartida con `shm_open` y un único `ftruncate` a 64 MiB, porque en macOS los objetos shm no se
-  pueden redimensionar. Las páginas solo se materializan al usarse.
-- `inproc_sync` del servidor se compila en macOS en modo «solo fsync», sin ntsync.
+- Wait on one word → `__ulock_wait2`.
+- Wake → `__ulock_wake(ULF_WAKE_ALL)`, plus a shared epoch counter.
+- Wait on several words → register in a control block (index 0 of the shared memory, which fsync never
+  allocates), read the epoch, check the words and wait on the epoch. With sequentially consistent atomics
+  no wakeup is lost. Spurious wakeups do not matter, because fsync always re-checks the objects.
+- Bounded spinning before sleeping (`WINE_MSYNC_SPIN`, 4000 iterations by default): waking a thread blocked
+  in the kernel costs several µs on Apple Silicon under Rosetta.
+- Deadline already expired → check and return without entering the kernel (a ulock with a minimal timeout
+  still arms a coalesced timer of tens of µs).
+- Shared memory with `shm_open` and a single `ftruncate` to 64 MiB, because shm objects cannot be resized
+  on macOS. Pages are only materialised when used.
+- The server's `inproc_sync` is built on macOS in "fsync only" mode, without ntsync.
 
-Activación: `WINEFSYNC=1`, que el script `proton` pone por defecto en macOS. Se desactiva con
-`PROTON_NO_MSYNC=1`, con el mismo patrón que `PROTON_NO_FSYNC`.
+Activation: `WINEFSYNC=1`, which the `proton` script sets by default on macOS. It is disabled with
+`PROTON_NO_MSYNC=1`, following the `PROTON_NO_FSYNC` pattern.
 
-## Consecuencias
+## Consequences
 
-- Unas 150 líneas en cinco ficheros (`include/wine/darwin_futex.h`, `server/fsync.c`, `server/inproc_sync.c`,
-  `dlls/ntdll/unix/fsync.c`, `include/Makefile.in`), frente a unas 5000 del parche original. Todo el modelo de
-  objetos de fsync, ya probado por Valve, se reutiliza tal cual.
-- Depende de una API privada pero estable de XNU (`__ulock_*`), que usa el propio sistema.
-- La espera múltiple despierta a todos los que esperan en varias palabras ante cualquier despertar. Es correcto,
-  pero escala peor con muchos hilos en esperas múltiples. Si un juego lo sufre, el siguiente paso es repartir la
-  época en *buckets* por dirección.
-- Diferencia con el msync de marzent: no hay servidor de mensajes Mach. Las esperas no pasan nunca por el
-  wineserver.
-- Resultados y metodología en [docs/bench/msync.md](../bench/msync.md).
+- About 150 lines in five files (`include/wine/darwin_futex.h`, `server/fsync.c`, `server/inproc_sync.c`,
+  `dlls/ntdll/unix/fsync.c`, `include/Makefile.in`), compared to about 5000 in the original patch. The whole
+  fsync object model, already proven by Valve, is reused as is.
+- Depends on a private but stable XNU API (`__ulock_*`), which the system itself uses.
+- Multi-waits wake every thread waiting on several words on any wakeup. That is correct but scales worse
+  with many threads in multi-waits. If a game suffers from it, the next step is to split the epoch into
+  per-address buckets.
+- Difference from marzent's msync: there is no Mach message server. Waits never go through wineserver.
+- Results and methodology in [docs/bench/msync.md](../bench/msync.md).
