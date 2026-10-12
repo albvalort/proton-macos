@@ -1,6 +1,11 @@
 name: Lingo
-status: untested
+status: runs
+env:
+  # Godot 3 disables its depth prepass on "Apple" GPUs, which hides every material using the
+  # opaque-prepass depth mode (most of Lingo's walls). Report another vendor.
+  WINE_GL_VENDOR_REPORT_AMD: "1"
 notes: >-
-  Godot 3 (OpenGL). Used to hang at startup in GetLogicalDrives(): BOOLEAN syscall arguments
-  were misread on macOS x86_64 (fixed in wine 77017fd). Now creates its window; gameplay not
-  validated yet. Installed with `pmac install`, 2026-10-12.
+  Godot 3.5 (GLES3/OpenGL). Fixed so far: startup hang in GetLogicalDrives (BOOLEAN syscall
+  arguments, wine 77017fd), invisible walls (GL vendor, see env), first-person mouse look
+  (winemac raw input). Edge outlines still missing. Steam Cloud saves are Windows-only and
+  must be copied by hand. 2026-10-12.
